@@ -260,4 +260,44 @@ ok(st14.records === 2, 'v1.4: 2 Url0 records from query output (got ' + st14.rec
 ok(col14.entries.length === 2 && col14.entries[0].url.includes('clip.mkv'), 'v1.4: records extracted via query fallback');
 ok(col14.entries[0].referrer === 'https://subkey.example.com/watch/9', 'v1.4: referrer via query fallback');
 
+/* ---- v1.5: IDM list order (numeric subkey = chronology) + timestamps ---- */
+ok(idm.ordFromKeyPath('HKEY_CURRENT_USER\\Software\\DownloadManager\\847') === 847, 'v1.5: ord from key path (got ' + idm.ordFromKeyPath('HKEY_CURRENT_USER\\Software\\DownloadManager\\847') + ')');
+ok(idm.ordFromKeyPath('HKEY_CURRENT_USER\\Software\\DownloadManager\\Settings') === null, 'v1.5: non-numeric subkey has no ord');
+ok(idm.plausibleUnixMs(133989710000000000) > 631152000000 && idm.plausibleUnixMs(133989710000000000) < Date.now(), 'v1.5: FILETIME ticks → unix ms');
+ok(idm.plausibleUnixMs(1757000000) === 1757000000000, 'v1.5: unix seconds → ms');
+ok(idm.plausibleUnixMs(42) === null, 'v1.5: tiny number is not a timestamp');
+
+/* orderEntries: highest subkey first = newest first, like IDM's own window */
+const entries15 = [
+  { url: 'https://a/old.bin', ord: 12 },
+  { url: 'https://b/new.bin', ord: 909 },
+  { url: 'https://c/mid.bin', ord: 77 },
+  { url: 'https://d/fileless.bin' }          // UrlHistory/blob entry — no ord
+];
+const ordered15 = idm.orderEntries(entries15);
+ok(ordered15[0].url === 'https://b/new.bin', 'v1.5: newest (highest id) first');
+ok(ordered15[1].url === 'https://c/mid.bin' && ordered15[2].url === 'https://a/old.bin', 'v1.5: descending id order');
+ok(ordered15[3].url === 'https://d/fileless.bin', 'v1.5: entries without ord come last');
+ok(ordered15[0].rank === 0 && ordered15[2].rank === 2 && ordered15[3].rank === 3, 'v1.5: rank assigned 0..n');
+
+/* record extraction captures ord + sniffed dates */
+const rec15 = [{
+  key: 'HKEY_CURRENT_USER\\Software\\DownloadManager\\841',
+  name: 'Url0', type: 'sz', data: 'https://x.example.com/v/movie.mp4'
+}, {
+  key: 'HKEY_CURRENT_USER\\Software\\DownloadManager\\841',
+  name: 'LastDownloadDate', type: 'sz', data: '1757000000'
+}];
+const col15 = idm.makeCollector();
+idm.entriesFromRecords(rec15, col15);
+const e15 = col15.entries[0];
+ok(e15 && e15.ord === 841, 'v1.5: record keeps its numeric subkey ord');
+ok(e15 && e15.dateReal === true && e15.date === 1757000000000, 'v1.5: timestamp value → dateReal date (got ' + (e15 && e15.date) + ')');
+
+/* collector upgrade: same URL re-downloaded later keeps the NEWEST ord */
+const col16 = idm.makeCollector();
+col16.add('https://z/a.zip', '', '', 'IDM', { ord: 10 });
+col16.add('https://z/a.zip', '', '', 'IDM', { ord: 999 });
+ok(col16.entries.length === 1 && col16.entries[0].ord === 999, 'v1.5: duplicate URL keeps newest ord');
+
 console.log('\nDone. exitCode =', process.exitCode || 0);

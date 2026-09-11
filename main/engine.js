@@ -15,22 +15,38 @@ const RETRIES = 5;
 class Limiter {
   constructor() { this.rate = 0; this.budget = 0; this.waiters = []; this._t = setInterval(() => this._tick(), 200); }
   _tick() {
-    if (this.rate > 0) this.budget = Math.min(this.budget + this.rate * 0.2, this.rate * 0.6);
+    if (this.rate > 0) this.budget = Math.min(this.budget + this.rate * 0.2, this.rate);
     else this.budget = Infinity;
     const ws = this.waiters.splice(0);
     for (const w of ws) w();
   }
   take(n) {
     if (this.rate <= 0) return Promise.resolve();
+    /* v1.5 FIX: a single network chunk can be larger than the bucket cap.
+     * Grant as soon as 1 second worth of bytes accumulated, but DEBIT the
+     * full chunk size (the bucket may go negative and refill) — otherwise
+     * oversized chunks slip through unaccounted and the limit is fake. */
     return new Promise(res => {
       const tryGive = () => {
-        if (this.budget >= n) { this.budget -= n; res(); }
+        if (this.budget >= Math.min(n, this.rate)) { this.budget -= n; res(); }
         else this.waiters.push(tryGive);
       };
       tryGive();
     });
   }
-  setRate(bps) { this.rate = Math.max(0, bps | 0); if (!bps) { this.budget = Infinity; const ws = this.waiters.splice(0); ws.forEach(w => w()); } }
+  setRate(bps) {
+    this.rate = Math.max(0, bps | 0);
+    if (this.rate > 0) {
+      /* v1.5 FIX: turning the limit ON after starting unlimited left
+       * budget === Infinity → every take() granted instantly and the speed
+       * limit never applied. Re-arm the bucket whenever the limiter goes
+       * from unlimited to limited. */
+      if (this.budget === Infinity) this.budget = 0;
+    } else {
+      this.budget = Infinity;
+      const ws = this.waiters.splice(0); ws.forEach(w => w());
+    }
+  }
 }
 
 /* ---------- engine ---------- */
@@ -43,12 +59,21 @@ class Engine extends EventEmitter {
     this.jobs = new Map();          // id -> job
     this._draining = false;
     this.applySettings(store.get('settings', {}));
+    let migrated = 0;
     for (const r of this.history) {
       if (r.status === 'downloading' || r.status === 'queued') { r.status = 'paused'; r.speed = 0; }
-      /* v1.3 migration: IDM-imported links are PARKED history — never part of
-       * resume-all / scheduler runs, no matter which old version created them */
-      if (r.source === 'idm' && r.status === 'paused') r.parked = true;
+      /* v1.5 migration: IDM history imports are FINISHED downloads — mark them
+       * completed (user request: a restored list must look like the list IDM
+       * itself shows, not a wall of paused items). Restarting one is a
+       * deliberate per-row action. */
+      if (r.source === 'idm' && (r.status === 'paused' || r.status === 'queued')) {
+        r.status = 'completed'; r.parked = false; r.speed = 0; r.eta = null;
+        if (!r.completedAt) r.completedAt = r.addedAt || Date.now();
+        if (r.dateReal === undefined) r.dateReal = false;
+        migrated++;
+      }
     }
+    if (migrated) console.log('[engine] migrated ' + migrated + ' IDM imports to completed');
     store.set('history', this.history);
   }
 
@@ -58,6 +83,9 @@ class Engine extends EventEmitter {
     this.speedLimit = Math.max(0, s.speedLimit ?? 0);           // bytes/sec, 0 = off
     this.downloadDir = s.downloadDir || U.homedirDownloads();
     this.categorize = s.categorize !== false;
+    /* per-category folders (IDM-style): { video: 'D:\\Movies', audio: '', … }
+     * empty string = default downloadDir/<category> subfolder */
+    this.categoryFolders = (s.categoryFolders && typeof s.categoryFolders === 'object') ? s.categoryFolders : {};
     this.useYtdlp = !!s.useYtdlp;
     this.ytdlpPath = s.ytdlpPath || '';
     this._ytCache = undefined;
@@ -82,9 +110,14 @@ class Engine extends EventEmitter {
 
   counts() {
     const c = { all: this.history.length, active: 0, paused: 0, done: 0, failed: 0 };
+    /* v1.5 FIX: the old code checked c[r.status], but the status literal is
+     * 'completed' while the counter key is 'done' — the Completed tab badge
+     * was always 0. Explicit mapping instead. */
     for (const r of this.history) {
-      if (['downloading', 'queued'].includes(r.status)) c.active++;
-      else if (c[r.status] !== undefined) c[r.status]++;
+      if (r.status === 'downloading' || r.status === 'queued') c.active++;
+      else if (r.status === 'completed') c.done++;
+      else if (r.status === 'paused') c.paused++;
+      else if (r.status === 'failed') c.failed++;
     }
     return c;
   }
@@ -95,29 +128,48 @@ class Engine extends EventEmitter {
   }
 
   /* ============ add ============ */
-  add({ url, referrer = '', cookies = '', filename = '', source = 'manual', start = true, folder = '' }) {
+  /* start  = begin downloading now
+   * markDone = import as a FINISHED download (IDM history: the list must look
+   *            exactly like IDM's own list — every item shows completed)
+   * addedAt / completedAt / dateReal / ord = migration metadata from IDM */
+  add({ url, referrer = '', cookies = '', filename = '', source = 'manual', start = true, folder = '',
+        markDone = false, addedAt = null, completedAt = null, dateReal = null, ord = null }) {
     url = String(url || '').trim();
     if (!/^https?:\/\//i.test(url) && !/^ftp:\/\//i.test(url)) throw new Error('invalid url: ' + url);
-    const dup = this.history.find(r => r.url === url && ['downloading', 'queued', 'paused'].includes(r.status));
-    if (dup) return { id: dup.id, existed: true };
+    if (!markDone) {
+      const dup = this.history.find(r => r.url === url && ['downloading', 'queued', 'paused'].includes(r.status));
+      if (dup) return { id: dup.id, existed: true };
+    }
 
+    const now = Date.now();
     const rec = {
-      id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      id: 'd' + now.toString(36) + Math.random().toString(36).slice(2, 7),
       url, referrer, cookies,
       filename: U.sanitizeFilename(filename || U.filenameFromUrl(url) || 'download'),
       folder: folder || '',
       category: 'other', size: null, received: 0, speed: 0, eta: null,
-      /* start=false (IDM history import, "queue only") → land as PARKED:
-       * never auto-starts, never counted as active, ignored by resume-all &
-       * scheduler; starts only when the user resumes that exact row. */
-      status: start ? 'queued' : 'paused', parked: start ? false : true, error: '', source,
-      addedAt: Date.now(), startedAt: null, completedAt: null,
+      error: '', source,
+      addedAt: addedAt || now, startedAt: null,
+      completedAt: markDone ? (completedAt || addedAt || now) : null,
+      /* dateReal=true only when a genuine timestamp arrived with the item */
+      dateReal: dateReal === true,
+      ord: (typeof ord === 'number' && isFinite(ord)) ? ord : null,
       engine: U.isVideoSite(url) && this.useYtdlp ? 'yt' : 'http'
     };
+    if (markDone) {
+      /* history import → completed, never queued, never auto-started. */
+      rec.status = 'completed'; rec.parked = false;
+    } else {
+      /* start=false → parked only for IDM-style bulk imports (never part of
+       * resume-all/scheduler); a user "queue only" add stays a normal paused
+       * row the scheduler may pick up later. */
+      rec.status = start ? 'queued' : 'paused';
+      rec.parked = !start && source === 'idm';
+    }
     this.history.unshift(rec);
     this.store.save('history');
     this.emit('added', rec);
-    if (start) this._drain();
+    if (start && !markDone) this._drain();
     return { id: rec.id, existed: false };
   }
 
@@ -137,28 +189,36 @@ class Engine extends EventEmitter {
     tick();
   }
 
-  /* ============ probe (info about remote file) ============ */
+  /* ============ probe (info about remote file) ============
+   * v1.5 FIX: probe previously used `redirect:'manual'` + a hand-rolled
+   * redirect loop. On real CDNs (HTTP/2 302) Electron's net module never
+   * delivers the 302 response in manual mode and the request dies with
+   * "Redirect was cancelled" — EVERY redirecting download link failed.
+   * Now: plain GET with Range:bytes=0-0 and redirect:'follow' (Chromium
+   * follows the chain, headers survive the hops), stream cancelled right
+   * after the headers arrive. Retry once without Range if the server
+   * rejects it. */
   async probe(url, { referrer = '', cookies = '' } = {}) {
-    const out = { ok: false, url, filename: '', size: null, mime: '', acceptRanges: false, status: 0 };
-    let current = url;
-    for (let hop = 0; hop < 8; hop++) {
-      const res = await this._request(current, {
+    const attempt = async (withRange) => {
+      const res = await this._request(url, {
         method: 'GET',
-        headers: { Range: 'bytes=0-0', ...(referrer ? { Referer: referrer } : {}), ...(cookies ? { Cookie: cookies } : {}) },
-        redirect: 'manual'
+        headers: {
+          ...(withRange ? { Range: 'bytes=0-0' } : {}),
+          ...(referrer ? { Referer: referrer } : {}),
+          ...(cookies ? { Cookie: cookies } : {})
+        },
+        redirect: 'follow'
       });
-      const st = res.statusCode || 0;
-      out.status = st;
-      if ([301, 302, 303, 307, 308].includes(st)) {
-        const loc = res.headers.location;
-        res.resume();
-        if (!loc) break;
-        current = new URL(loc, current).href;
-        continue;
-      }
+      const out = { res };
+      try { res.on('error', () => { }); } catch { }
+      return out;
+    };
+    const read = (res) => {
+      const out = { ok: false, status: res.statusCode || 0, size: null, mime: '', acceptRanges: false, filename: '' };
+      const st = out.status;
       if (st >= 200 && st < 300) {
-        const h = res.headers;
         out.ok = true;
+        const h = res.headers;
         const cr = h['content-range'];
         if (st === 206 && cr) {
           const total = parseInt(String(cr).split('/')[1], 10);
@@ -171,12 +231,26 @@ class Engine extends EventEmitter {
         out.filename = U.filenameFromDisposition(h['content-disposition']);
         if (String(h['accept-ranges'] || '').toLowerCase() === 'bytes') out.acceptRanges = true;
       }
-      res.resume();
-      break;
+      return out;
+    };
+    let result = null, lastStatus = 0;
+    for (const withRange of [true, false]) {
+      try {
+        const { res } = await attempt(withRange);
+        result = read(res);
+        lastStatus = result.status;
+        try { res.cancel(); } catch { try { res.resume(); } catch { } }
+        if (result.ok) break;
+        /* 416 = bad range → retry without; other hard errors → stop */
+        if (!withRange || (result.status && result.status !== 416)) break;
+      } catch (e) {
+        if (!withRange) return { ok: false, url, error: String(e.message || e), status: lastStatus, size: null, mime: '', acceptRanges: false, filename: '' };
+      }
     }
-    if (!out.filename) out.filename = U.filenameFromUrl(current);
-    out.finalUrl = current;
-    return out;
+    if (!result) return { ok: false, url, error: 'probe failed', status: lastStatus, size: null, mime: '', acceptRanges: false, filename: '' };
+    if (!result.filename) result.filename = U.filenameFromUrl(url);
+    result.url = url;
+    return result;
   }
 
   _request(url, { method = 'GET', headers = {}, redirect = 'follow' } = {}) {
@@ -331,6 +405,7 @@ class Engine extends EventEmitter {
         } catch (e) {
           if (job.aborting) return;
           if (e && e.fatal) throw e;
+          console.error('[engine]', job.rec.filename, 'segment', seg.start + '-' + (seg.end === Infinity ? '∞' : seg.end), 'attempt', attempt + 1, 'failed:', (e && e.message) || e);
           await U.sleep(600 * (attempt + 1));
         }
       }
@@ -374,24 +449,33 @@ class Engine extends EventEmitter {
           return reject(new Error('server ignored range'));
         }
         job.lastData = Date.now();
-        res.on('data', async (chunk) => {
-          bump();
-          if (job.aborting) { try { req.abort(); } catch { } return; }
-          let buf = chunk;
-          if (job.size != null && seg.pos + buf.length > seg.end + 1) {
-            buf = buf.slice(0, seg.end + 1 - seg.pos);
-          }
-          if (!buf.length) return;
-          await this.limiter.take(buf.length);
-          if (job.fd !== null && !job.aborting) {
+        /* v1.5 FIX: the old `res.on('data', async …)` handler raced itself —
+         * the stream kept emitting chunks while the previous write was still
+         * pending, so two chunks could be written at the SAME position
+         * (silent corruption at chunk boundaries). `for await` on the
+         * response stream applies real backpressure: the next chunk is only
+         * pulled after the previous one is fully written. */
+        try {
+          for await (let chunk of res) {
+            bump();
+            if (job.aborting) { try { req.abort(); } catch { } return unreg() || reject({ abort: true }); }
+            if (job.size != null && seg.pos + chunk.length > seg.end + 1) {
+              chunk = chunk.subarray(0, seg.end + 1 - seg.pos);
+            }
+            if (!chunk.length) continue;
+            await this.limiter.take(chunk.length);
+            if (job.fd === null || job.aborting) { unreg(); return reject({ abort: true }); }
             try {
-              await fs.promises.write(job.fd, buf, 0, buf.length, seg.pos);
-            } catch (e) { return reject(e); }
-            seg.pos += buf.length;
+              /* NOTE: Electron 33's bundled Node does NOT expose
+               * fs.promises.write — the callback form fs.write() is the
+               * portable one (this bug made every multi-segment download
+               * fail with "fs.promises.write is not a function"). */
+              await new Promise((res2, rej2) => fs.write(job.fd, chunk, 0, chunk.length, seg.pos, (err2) => err2 ? rej2(err2) : res2()));
+            } catch (e) { unreg(); return reject(e); }
+            seg.pos += chunk.length;
           }
-        });
-        res.on('end', () => { unreg(); resolve(); });
-        res.on('error', (e) => { unreg(); reject(e); });
+          unreg(); resolve();
+        } catch (e) { unreg(); reject(e); }
       });
       req.on('error', (e) => { unreg(); reject(e); });
       req.end();
@@ -410,11 +494,17 @@ class Engine extends EventEmitter {
   }
 
   _folderFor(rec) {
-    const base = rec.folder || this.downloadDir;
-    if (this.categorize && !rec.folder) {
-      return path.join(base, rec.category === 'other' ? '' : rec.category).replace(/[\\/]+$/, '');
+    /* explicit per-request folder always wins */
+    if (rec.folder) return rec.folder;
+    /* IDM-style per-category folder from Settings → Categories */
+    const catDir = this.categoryFolders && this.categoryFolders[rec.category];
+    if (this.categorize && catDir && typeof catDir === 'string' && catDir.trim()) {
+      return catDir.replace(/[\\/]+$/, '');
     }
-    return base;
+    if (this.categorize) {
+      return path.join(this.downloadDir, rec.category === 'other' ? '' : rec.category).replace(/[\\/]+$/, '');
+    }
+    return this.downloadDir;
   }
 
   _finishJob(job, cleanup) {

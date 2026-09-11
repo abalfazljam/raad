@@ -15,6 +15,14 @@ const U = require('./util');
 const DEV = process.argv.includes('--dev');
 app.setAsDefaultProtocolClient('raad');
 app.setAppUserModelId('dev.raad.dm');   /* correct taskbar icon & notifications on Windows */
+app.setName('Raad Download Manager');
+
+/* v1.5 resource diet: the GPU helper process costs 60–120 MB of RAM and was
+ * the source of the rendering glitches reported on some Windows machines.
+ * Raad's UI is deliberately static (no animated backgrounds, windowed list,
+ * coalesced repaints) so software rendering is both lighter AND stabler.
+ * This brings the memory footprint close to native download managers. */
+app.disableHardwareAcceleration();
 
 /* ── portable mode: keep ALL app data (settings, history, schedules, cache)
  *    inside a "Raad-Data" folder next to the exe — nothing in the registry
@@ -68,7 +76,8 @@ function defaultSettings() {
     token: crypto.randomBytes(12).toString('hex'),
     autostart: false,
     closeToTray: true,
-    /* appearance extras */
+    /* per-category save folders (IDM-style), see Settings → Categories */
+    categoryFolders: {},      // { video: 'D:\\Movies', … } — '' = default subfolder
     radius: 'md',            // sm | md | lg
     fontScale: 'm',          // s | m | l | xl
     glow: 'soft',            // off | soft | vivid
@@ -131,10 +140,12 @@ function createDialog(payload) {
 
 function createTray() {
   try { tray = new Tray(iconOf('tray.png')); } catch { return; }
+  /* NOTE: no mass "Start all" here on purpose — with a restored IDM history
+   * (thousands of rows) a stray click would flood the connection. Starting
+   * happens per-row, or on schedule (Scheduler view). */
   const menu = Menu.buildFromTemplate([
     { label: 'Raad', click: () => showMain() },
     { type: 'separator' },
-    { label: T().startDl + ' (All)', click: () => engine.resumeAll() },
     { label: 'Pause All', click: () => engine.pauseAll() },
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } }
@@ -367,13 +378,19 @@ function registerIpc() {
   });
   ipcMain.handle('idm:apply', (_e, { entries, settings: guesses }) => {
     let added = 0;
+    const base = Date.now();   // rank → stable strictly-decreasing addedAt,
+    // so the list renders in IDM's own order (newest first) even without real dates
     for (const en of entries || []) {
       if (!en || !en.url) continue;
       try {
+        const addedAt = en.dateReal && en.date ? en.date : (base - (typeof en.rank === 'number' ? en.rank : 999999));
         engine.add({
           url: en.url, referrer: en.referrer || '', cookies: '',
           filename: en.filename || '', source: 'idm',
-          start: false, folder: ''
+          start: false, folder: '',
+          markDone: true,                 /* history = FINISHED downloads */
+          addedAt, completedAt: en.dateReal && en.date ? en.date : addedAt,
+          dateReal: en.dateReal === true, ord: en.ord
         });
         added++;
       } catch { }

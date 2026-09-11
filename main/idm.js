@@ -157,26 +157,84 @@ function decodeIdmStrings(buf) {
 
 const FILENAME_RE = new RegExp('\\.(' + Object.values(U.EXT_CATS).flat().concat(['bin', 'dat', 'part']).join('|') + ')$', 'i');
 
-/* ---------- shared URL collector (dedupe + cap) ---------- */
+/* ---------- shared URL collector (dedupe + cap + chronological metadata) ----------
+ * meta = { ord } — IDM stores one NUMERIC SUBKEY per download; the number
+ * grows over time, so its order IS the list order the user sees inside IDM
+ * (newest = highest). Capturing it lets Raad restore the same order.
+ * meta = { date, dateReal } — some IDM builds keep a timestamp value in the
+ * record; when found it is used as the real download date. */
 const URLISH_RE = /^(?:(?:https?|ftp):\/\/|www\.)/i;
 
 function makeCollector(cap = MAX_ENTRIES) {
-  const seen = new Set();
+  const seen = new Map();          // url -> entry (for ord/date upgrades on repeats)
   const entries = [];
   return {
     entries,
-    add(url, referrer = '', filename = '', source = 'IDM') {
+    add(url, referrer = '', filename = '', source = 'IDM', meta = null) {
       url = String(url || '').trim();
       if (/^www\./i.test(url)) url = 'http://' + url;
       if (!/^(?:https?|ftp):\/\//i.test(url)) return false;
       if (url.length > 2000 || IDM_OWN_RE.test(url)) return false;
-      if (seen.has(url)) return false;
-      seen.add(url);
-      entries.push({ url, referrer, filename, source, key: '', valueName: '' });
+      const known = seen.get(url);
+      if (known) {
+        /* same URL downloaded more than once → keep the NEWEST ord/date */
+        if (meta && typeof meta.ord === 'number' && (typeof known.ord !== 'number' || meta.ord > known.ord)) {
+          known.ord = meta.ord;
+          if (meta.dateReal && (!known.dateReal || (meta.date || 0) > (known.date || 0))) { known.date = meta.date; known.dateReal = true; }
+        }
+        return false;
+      }
+      const en = { url, referrer, filename, source, key: '', valueName: '', ord: null, date: null, dateReal: false };
+      if (meta) {
+        if (typeof meta.ord === 'number' && isFinite(meta.ord)) en.ord = meta.ord;
+        if (meta.dateReal && typeof meta.date === 'number') { en.date = meta.date; en.dateReal = true; }
+      }
+      seen.set(url, en);
+      entries.push(en);
       return true;
     },
     full() { return entries.length >= cap; }
   };
+}
+
+/* numeric-subkey id → chronological rank inside IDM
+ * "HKEY_CURRENT_USER\Software\DownloadManager\847" → 847 */
+function ordFromKeyPath(keyPath) {
+  const segs = String(keyPath || '').split(/[\\/]/);
+  const last = (segs[segs.length - 1] || '').trim();
+  if (/^\d{1,12}$/.test(last)) { const n = parseInt(last, 10); if (n >= 0 && n <= 4e12) return n; }
+  return null;
+}
+
+/* ---------- timestamps found in record values ----------
+ * IDM builds differ; sniff generically: value names mentioning date/time,
+ * plausible FILETIME (100ns since 1601), unix seconds or unix ms. */
+function plausibleUnixMs(n) {
+  if (!isFinite(n)) return null;
+  const now = Date.now();
+  if (n >= 6e14 && n <= 4e18) {                    // FILETIME ticks (100ns)
+    const ms = n / 1e4 - 11644473600000;
+    return (ms > 631152000000 && ms <= now + 86400000) ? ms : null;  // > 1990
+  }
+  if (n >= 1e12 && n <= 4e13) return (n <= now + 86400000) ? n : null;   // ms
+  if (n >= 6e8 && n <= 4e9) { const ms = n * 1000; return (ms <= now + 86400000) ? ms : null; } // s
+  return null;
+}
+
+function dateFromRecordValues(vals) {
+  let best = null;
+  const consider = (n) => { const ms = plausibleUnixMs(n); if (ms && (!best || ms > best)) best = ms; };
+  for (const v of vals) {
+    if (!/(date|time|stamp|last)/i.test(String(v.name || ''))) continue;
+    if (v.type === 'dword' && typeof v.data === 'number') consider(v.data);
+    else if (typeof v.data === 'string' && /^\d{6,18}$/.test(v.data.trim())) consider(parseInt(v.data.trim(), 10));
+    else if (typeof v.data === 'string') {
+      const t = Date.parse(v.data.trim().replace(/\./g, '/'));
+      if (!isNaN(t) && t > 631152000000 && t <= Date.now() + 86400000 && (!best || t > best)) best = t;
+    }
+    else if (v.type === 'qword' && typeof v.data === 'number') consider(v.data);
+  }
+  return best;
 }
 
 /* one IDM record blob → one entry (first URL = download, second = referrer) */
@@ -234,7 +292,7 @@ function entriesFromRecords(values, col) {
     groups.get(k).push(v);
   }
   let records = 0;
-  for (const [, vals] of groups) {
+  for (const [k, vals] of groups) {
     if (colRef.full()) break;
     const urls = vals.filter(v => URLISH_RE.test(v.data.trim()) && v.data.length < 2000 && !IDM_OWN_RE.test(v.data.trim()));
     if (!urls.length) continue;
@@ -247,9 +305,25 @@ function entriesFromRecords(values, col) {
     const filename = fnames.length
       ? fnames.sort((a, b) => b.length - a.length)[0].split(/[\\/]/).pop()
       : (U.filenameFromUrl(url) || '');
-    if (colRef.add(url, ref ? ref.data.trim() : '', U.sanitizeFilename(filename, ''))) records++;
+    /* chronological metadata: numeric subkey id + any timestamp value */
+    const meta = { ord: ordFromKeyPath(k) };
+    const d = dateFromRecordValues(vals);
+    if (d) { meta.date = d; meta.dateReal = true; }
+    if (colRef.add(url, ref ? ref.data.trim() : '', U.sanitizeFilename(filename, ''), 'IDM', meta)) records++;
   }
   return records;
+}
+
+/* order entries EXACTLY like IDM's own list: numeric-subkey records newest
+ * (highest id) first; entries without a subkey id (UrlHistory mirrors, legacy
+ * blobs) follow in source order. `rank` = final 0-based position (0 = newest)
+ * so the caller can derive stable timestamps regardless of raw id magnitudes. */
+function orderEntries(entries) {
+  const recs = entries.filter(e => typeof e.ord === 'number').sort((a, b) => b.ord - a.ord);
+  const rest = entries.filter(e => typeof e.ord !== 'number');
+  const ordered = recs.concat(rest);
+  ordered.forEach((e, i) => { e.rank = i; });
+  return ordered;
 }
 
 /* ---------- settings guesses (strict) ---------- */
@@ -443,7 +517,7 @@ function importAuto() {
         if (col.full()) break;
       }
 
-      const entries = col.entries;
+      const entries = orderEntries(col.entries);
       const settings = await queryWinSettings();
       if (!entries.length && !settings.length) {
         return resolve({
@@ -457,6 +531,7 @@ function importAuto() {
         totalValues: entries.length,
         histFile: files[0] || '', histFiles: files,
         fromRegistry: afterReg, fromFiles: entries.length - afterReg,
+        ordered: true,
         detail: srcs.join(' | ')
       });
     })();
@@ -473,14 +548,15 @@ function importFromFile(filePath) {
     const col = makeCollector();
     const records = entriesFromRecords(pool, col);
     blobsFromValues(pool, col);
-    return { mode: 'reg', entries: col.entries, settings: guessSettings(pool), totalValues: values.length, records };
+    return { mode: 'reg', entries: orderEntries(col.entries), settings: guessSettings(pool), totalValues: values.length, records, ordered: true };
   }
-  return { mode: 'list', entries: parseHistoryText(buf), settings: [], totalValues: 0 };
+  return { mode: 'list', entries: parseHistoryText(buf), settings: [], totalValues: 0, ordered: false };
 }
 
 module.exports = {
   parseRegFile, decodeIdmStrings, extractEntries, guessSettings,
   parseHistoryText, extractFromListFile: parseHistoryText,
   parseRegQuery, entriesFromRegQuery, entriesFromRecords, blobsFromValues, makeCollector,
+  ordFromKeyPath, plausibleUnixMs, dateFromRecordValues, orderEntries,
   importFromFile, importAuto, idmHistoryPaths, idmHistoryFiles, idmHistoryDir
 };

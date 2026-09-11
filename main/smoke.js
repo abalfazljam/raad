@@ -34,7 +34,7 @@ module.exports = async function run(ctx) {
     };
 
     // capture each view
-    for (const v of ['downloads', 'scheduler', 'idm', 'settings']) {
+    for (const v of ['downloads', 'cats', 'scheduler', 'idm', 'settings']) {
       await js(win, `window.nav('${v}')`);
       await sleep(1000);
       await shot('view-' + v);
@@ -62,7 +62,7 @@ module.exports = async function run(ctx) {
     log('bulk 1000 rows (windowed list)', '');
     await js(win, `
       const items = [];
-      for (let i = 0; i < 1000; i++) items.push({ url: 'https://cdn.example.com/bulk/file-' + i + '.zip', filename: 'bulk-file-' + i + '.zip' });
+      for (let i = 0; i < 1000; i++) items.push({ url: 'https://cdn.example.com/bulk/file-' + i + '.zip', filename: 'bulk-file-' + i + '.zip', source: 'idm' });
       window.raad.dl.add({ items, start: false });
     `);
     await sleep(2200);
@@ -83,6 +83,25 @@ module.exports = async function run(ctx) {
     const counts = await js(win, `window.raad.dl.counts()`);
     log('counts after resumeAll — parked must stay paused (>=1000), active must stay tiny', JSON.stringify(counts));
     if (counts.paused < 1000) results.errors.push('PARKED LEAK: resumeAll started parked items (paused=' + counts.paused + ')');
+
+    /* v1.5: IDM wizard apply (idm:apply) must land items as COMPLETED,
+     * newest-first ordering preserved */
+    await js(win, `
+      window.raad.idm.apply({ entries: [
+        { url: 'https://old.example.com/first.zip', filename: 'first.zip', rank: 1 },
+        { url: 'https://new.example.com/latest.zip', filename: 'latest.zip', rank: 0 }
+      ] });
+    `);
+    await sleep(900);
+    const idmCounts = await js(win, `(async () => {
+      const rows = await window.raad.dl.list({ filter: 'all' });
+      const a = rows.find(r => r.url.includes('new.example.com'));
+      const b = rows.find(r => r.url.includes('old.example.com'));
+      return { a: a && a.status, b: b && b.status, aDate: a && a.addedAt, bDate: b && b.addedAt };
+    })()`);
+    log('idm:apply → statuses (both must be completed)', JSON.stringify(idmCounts));
+    if (idmCounts.a !== 'completed' || idmCounts.b !== 'completed') results.errors.push('IDM IMPORT NOT COMPLETED: ' + JSON.stringify(idmCounts));
+    if (!(idmCounts.aDate > idmCounts.bDate)) results.errors.push('IDM IMPORT ORDER WRONG: newest rank must sort above');
     await js(win, `window.nav('settings')`);
     await sleep(600);
     const hasAuto = await js(win, `!!document.querySelector('.seg button') && [...document.querySelectorAll('.seg')].some(s => [...s.querySelectorAll('button')].some(b => /هماهنگ|Follow system/.test(b.textContent)))`);

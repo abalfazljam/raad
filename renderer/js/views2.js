@@ -2,6 +2,71 @@
 /* Raad DM — views: settings + IDM migration wizard */
 window.Views = window.Views || {};
 
+/* ═══════════════════ CATEGORIES (IDM-style per-type folders) ═══════════════════ */
+const CATS = [
+  { key: 'video',    label: 'catVideo',    exts: ['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'flv', 'wmv', 'ts', 'mpg', '3gp'] },
+  { key: 'audio',    label: 'catAudio',    exts: ['mp3', 'flac', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'wma'] },
+  { key: 'image',    label: 'catImage',    exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'psd', 'ico', 'heic'] },
+  { key: 'archive',  label: 'catArchive',  exts: ['zip', 'rar', '7z', 'tar', 'gz', 'iso', 'cab', 'bz2', 'xz'] },
+  { key: 'program',  label: 'catProgram',  exts: ['exe', 'msi', 'apk', 'dmg', 'deb', 'rpm', 'jar'] },
+  { key: 'document', label: 'catDocument', exts: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'epub', 'txt', 'csv'] },
+  { key: 'other',    label: 'catOther',    exts: [] }
+];
+
+Views.renderCats = async function (root) {
+  root.innerHTML = '';
+  const s = state.settings = await window.raad.settings.get();
+  state.info = await window.raad.appInfo();
+  const folders = (s.categoryFolders && typeof s.categoryFolders === 'object') ? s.categoryFolders : {};
+  const countsSrc = await window.raad.dl.list({ filter: 'all' });
+  const countFor = (key) => countsSrc.filter(r => (r.category || 'other') === key).length;
+
+  const head = h('div', { class: 'view-head' },
+    h('h2', { html: ic.folder + '<span>' + t('catsTitle') + '</span>' }));
+  const grid = h('div', { class: 'cats-grid' });
+  root.append(head, grid);
+
+  for (const c of CATS) {
+    const defaultDir = c.key === 'other'
+      ? s.downloadDir
+      : s.downloadDir.replace(/[\\/]+$/, '') + '/' + c.key;
+    const current = folders[c.key] || '';
+    const dirIn = h('input', { class: 'input', type: 'text', readonly: '', value: current, placeholder: defaultDir, style: { direction: 'ltr', fontSize: '11px' } });
+    const saveDir = async (dir) => {
+      const nf = { ...folders };
+      if (dir) nf[c.key] = dir; else delete nf[c.key];
+      await window.raad.settings.set({ categoryFolders: nf });
+      dirIn.value = dir || '';
+      toast(t('ok'), t('catSaved').replace('{cat}', t(c.label)));
+    };
+    const browse = h('button', {
+      class: 'btn sm', text: t('browse'),
+      onclick: async () => { const d = await window.raad.fs.pickFolder(current || defaultDir); if (d) saveDir(d); }
+    });
+    const clear = current ? h('button', { class: 'btn sm ghost', text: t('catReset'), onclick: () => saveDir('') }) : null;
+    const n = countFor(c.key);
+    grid.append(h('div', { class: 'card cat-card' },
+      h('div', { class: 'cat-top' },
+        fileIcon('x.' + (c.exts[0] || 'bin')),
+        h('div', { class: 'cat-name' },
+          h('h4', { text: t(c.label) }),
+          h('span', { class: 'chip', text: t('catCount').replace('{n}', n) })),
+        current ? h('span', { class: 'chip ok', text: t('catCustom') }) : null),
+      h('div', { class: 'exts' }, c.exts.slice(0, 12).map(e => h('span', { class: 'day-chip', text: e }))),
+      h('div', { class: 'field', style: { marginTop: '4px' } },
+        h('label', { text: t('catFolder') }),
+        h('div', { class: 'row' }, dirIn, browse, clear)),
+      h('div', { class: 'row', style: { gap: '8px', marginTop: '2px' } },
+        h('button', {
+          class: 'btn sm ghost', text: t('ctxFolder'),
+          onclick: () => window.raad.shell.openPath(current || defaultDir)
+        }),
+        h('span', { class: 'dim-tag', text: current ? current : t('catDefault') + ': ' + defaultDir, style: { fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr' } }))
+    ));
+  }
+  grid.append(h('div', { class: 'idm-note', style: { gridColumn: '1/-1' }, html: t('catsNote') }));
+};
+
 /* ═══════════════════ SETTINGS ═══════════════════ */
 Views.renderSettings = async function (root) {
   root.innerHTML = '';

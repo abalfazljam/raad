@@ -5,8 +5,11 @@ window.I18N = {
     badge: 'دانلود منیجر',
     navDownloads: 'دانلودها', navScheduler: 'زمان‌بندی', navIdm: 'انتقال از IDM', navSettings: 'تنظیمات',
     stReady: 'آماده', stDownloading: 'در حال دانلود', stLimitOff: 'محدودیت سرعت: خاموش',
-    /* filters */
+    /* filters + sort (v1.5) */
     fAll: 'همه', fActive: 'فعال', fPaused: 'متوقف', fDone: 'کامل‌شده', fFailed: 'ناموفق',
+    sortBy: 'مرتب‌سازی', sortNew: 'جدیدترین', sortOld: 'قدیمی‌ترین', sortName: 'نام (الفبا)',
+    filterDate: 'فیلتر تاریخ', dateAll: 'همه تاریخ‌ها', dateToday: 'امروز', dateWeek: '۷ روز اخیر', dateMonth: '۳۰ روز اخیر',
+    dateUnknown: 'تاریخ ثبت نشده', dateUnknownTip: 'IDM تاریخ این مورد را درج نکرده است؛ ترتیب آن مطابق ترتیب لیست IDM حفظ شده است',
     phSearch: 'جستجو در نام یا لینک…',
     btnAdd: 'دانلود جدید', btnPaste: 'از کلیپ‌بورد', btnPauseAll: 'توقف همه', btnStartAll: 'شروع همه',
     /* list meta */
@@ -27,6 +30,8 @@ window.I18N = {
     clipHint: 'کادرهای دلخواه را تیک بزن و اضافه کن. می‌توانی همزمان چندین لینک را وارد کنی.',
     /* scheduler */
     schTitle: 'زمان‌بندی دانلود', schNew: 'زمان‌بندی جدید', schNone: 'زمان‌بندی‌ای نساخته‌ای',
+    queueTitle: 'صف دانلود', queueDesc: 'شروع و توقف گروهی فقط از همین‌جا (یا طبق زمان‌بندی) انجام می‌شود تا با یک کلیک اشتباهی، اینترنت مصرف نشود.',
+    btnStartQueue: 'شروع صف', startQueueTitle: 'شروع صف؟', startQueueText: 'همه دانلودهای متوقف‌شده (به‌جز تاریخچه واردشده از IDM) شروع می‌شوند. مطمئنی؟',
     schNoneText: 'مثلاً: هر شب ساعت ۲ بامداد دانلودهای صف‌شده را شروع کن و بعد از پایان، سیستم خاموش شود.',
     schName: 'نام زمان‌بندی', schDays: 'روزها', schStart: 'شروع (اجرا)', schEnd: 'پایان (توقف همه)',
     schAction: 'عملیات در زمان شروع', schActStart: 'شروع صف دانلود', schActPause: 'توقف همه',
@@ -70,7 +75,7 @@ window.I18N = {
     idmSources: 'منابع اسکن‌شده:',
     idmShownN: 'نمایش {n} مورد اول از {total} — همه موارد تیک‌خورده در انتقال لحاظ می‌شوند.',
     idmNoEntries: 'هیچ تاریخچه‌ای پیدا نشد. IDM را کاملاً بسته و دوباره امتحان کن؛ یا در خود IDM از منوی Tasks ← Export خروجی متنی بگیر و با «فایل تاریخچه» وارد کن.',
-    idmDone: '{n} مورد از IDM منتقل شد ✓ (آماده — هر کدام را خودت شروع کن)', idmGuess: 'تنظیمات شناسایی‌شده از IDM:',
+    idmDone: '{n} مورد از IDM منتقل شد ✓ (وضعیت همه: کامل — مثل لیست خود IDM؛ برای دانلود دوباره روی آیتم راست‌کلیک کن)', idmGuess: 'تنظیمات شناسایی‌شده از IDM:',
     idmUseFolder: 'استفاده به‌عنوان پوشه دانلود',
     aboutTitle: 'درباره رعد', aboutText: 'رعد یک دانلود منیجر مدرن و متن‌باز (MIT) جایگزین IDM است: موتور چندتکه، توقف/ادامه، زمان‌بندی، مانیتور کلیپ‌بورد، افزونه کروم/فایرفاکس و انتقال کامل از IDM.',
     /* toasts */
@@ -81,7 +86,12 @@ window.I18N = {
     dlgNewDl: 'دانلود جدید', dlgFrom: 'لینک:', dlgFolder: 'ذخیره در', dlgStartNow: 'شروع کن',
     dlgAddQueue: 'فقط به صف', dlgFromExt: 'درخواست از افزونه مرورگر', dlgFromClipboard: 'از کلیپ‌بورد',
     dlgFromManual: 'افزودن دستی', dlgFromDeeplink: 'لینک raad://', dlgFromIdm: 'انتقال از IDM',
-    cat: 'دسته', catVideo: 'ویدیو', catAudio: 'صدا', catArchive: 'آرشیو', catProgram: 'برنامه', catDocument: 'مدرک', catImage: 'عکس', catOther: 'سایر'
+    cat: 'دسته', catVideo: 'ویدیو', catAudio: 'صدا', catArchive: 'آرشیو', catProgram: 'برنامه', catDocument: 'مدرک', catImage: 'عکس', catOther: 'سایر',
+    /* categories view (v1.5) */
+    navCats: 'دسته‌بندی‌ها', catsTitle: 'دسته‌بندی‌ها و پوشه‌ها',
+    catFolder: 'پوشه اختصاصی این دسته', catDefault: 'پیش‌فرض', catReset: 'بازگشت به پیش‌فرض',
+    catCustom: 'پوشه دلخواه', catCount: '{n} دانلود', catSaved: 'پوشه «{cat}» ذخیره شد',
+    catsNote: 'مثل IDM: هر دسته می‌تواند پوشه ذخیره جداگانه داشته باشد. اگر پوشه‌ای انتخاب نشود، فایل‌ها داخل زیرپوشه هم‌نام دسته در «پوشه پیش‌فرض دانلود» ذخیره می‌شوند. تشخیص دسته از پسوند فایل یا نوع محتوا انجام می‌شود.'
   },
 
   en: {
@@ -89,6 +99,9 @@ window.I18N = {
     navDownloads: 'Downloads', navScheduler: 'Scheduler', navIdm: 'Import from IDM', navSettings: 'Settings',
     stReady: 'Ready', stDownloading: 'Downloading', stLimitOff: 'Speed limit: off',
     fAll: 'All', fActive: 'Active', fPaused: 'Paused', fDone: 'Completed', fFailed: 'Failed',
+    sortBy: 'Sort by', sortNew: 'Newest first', sortOld: 'Oldest first', sortName: 'Name (A-Z)',
+    filterDate: 'Filter by date', dateAll: 'All dates', dateToday: 'Today', dateWeek: 'Last 7 days', dateMonth: 'Last 30 days',
+    dateUnknown: 'no date stored', dateUnknownTip: 'IDM did not store a timestamp for this item; its position matches IDM\'s own list order',
     phSearch: 'Search name or URL…',
     btnAdd: 'New download', btnPaste: 'From clipboard', btnPauseAll: 'Pause all', btnStartAll: 'Start all',
     queued: 'Queued', downloading: 'Downloading', paused: 'Paused', completed: 'Completed', failed: 'Failed', parked: 'Ready',
@@ -105,6 +118,8 @@ window.I18N = {
     clipSelectAll: 'Select all', clipAddN: 'Add {n} link(s)', clipToast: 'Found {n} link(s) in clipboard!',
     clipHint: 'Tick the ones you want and import. You can grab multiple links at once.',
     schTitle: 'Download scheduler', schNew: 'New schedule', schNone: 'No schedules yet',
+    queueTitle: 'Download queue', queueDesc: 'Bulk start/pause lives here (or in a schedule) — a stray click on the downloads toolbar can never flood your connection again.',
+    btnStartQueue: 'Start queue', startQueueTitle: 'Start the queue?', startQueueText: 'Every paused download (except the IDM history import) will start. Are you sure?',
     schNoneText: 'Example: every night at 2:00 AM start the queue, and shut the PC down when it drains.',
     schName: 'Schedule name', schDays: 'Days', schStart: 'Start time (run)', schEnd: 'End time (pause all)',
     schAction: 'Action at start time', schActStart: 'Start download queue', schActPause: 'Pause everything',
@@ -147,7 +162,7 @@ window.I18N = {
     idmSources: 'Scanned sources:',
     idmShownN: 'Showing the first {n} of {total} — every selected item is included in the import.',
     idmNoEntries: 'No history found. Close IDM completely and retry — or use IDM\'s menu Tasks → Export and import the text file here.',
-    idmDone: '{n} item(s) imported from IDM ✓ (ready — start each one whenever you want)', idmGuess: 'Settings detected from IDM:',
+    idmDone: '{n} item(s) imported from IDM ✓ (all marked completed — exactly like IDM\'s own list; right-click any item to download it again)', idmGuess: 'Settings detected from IDM:',
     idmUseFolder: 'Use as download folder',
     aboutTitle: 'About Raad', aboutText: 'Raad is a modern open-source (MIT) IDM alternative: multi-segment engine, pause/resume, scheduler, clipboard monitor, Chrome/Firefox extensions and full IDM migration.',
     ok: 'Done', err: 'Error', copied: 'Copied to clipboard',
@@ -156,7 +171,12 @@ window.I18N = {
     dlgNewDl: 'New download', dlgFrom: 'Link:', dlgFolder: 'Save to', dlgStartNow: 'Start',
     dlgAddQueue: 'Queue only', dlgFromExt: 'Requested by the browser extension', dlgFromClipboard: 'From clipboard',
     dlgFromManual: 'Manual add', dlgFromDeeplink: 'raad:// link', dlgFromIdm: 'IDM migration',
-    cat: 'Category', catVideo: 'Video', catAudio: 'Audio', catArchive: 'Archive', catProgram: 'Program', catDocument: 'Document', catImage: 'Image', catOther: 'Other'
+    cat: 'Category', catVideo: 'Video', catAudio: 'Audio', catArchive: 'Archive', catProgram: 'Program', catDocument: 'Document', catImage: 'Image', catOther: 'Other',
+    /* categories view (v1.5) */
+    navCats: 'Categories', catsTitle: 'Categories & folders',
+    catFolder: 'Dedicated folder for this category', catDefault: 'Default', catReset: 'Back to default',
+    catCustom: 'Custom folder', catCount: '{n} downloads', catSaved: 'Folder for "{cat}" saved',
+    catsNote: 'Like IDM: every category can have its own save folder. Without a custom folder, files go into a same-named subfolder of the default download folder. The category is detected from the file extension or the content type.'
   }
 };
 

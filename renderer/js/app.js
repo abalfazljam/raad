@@ -5,6 +5,7 @@ window.state = window.state || {}; // shared with views.js state object
 (function boot() {
   const viewMap = {
     downloads: () => Views.renderDownloads($('#view-downloads')),
+    cats: () => Views.renderCats($('#view-cats')),
     scheduler: () => Views.renderScheduler($('#view-scheduler')),
     idm: () => Views.renderIdm($('#view-idm')),
     settings: () => Views.renderSettings($('#view-settings'))

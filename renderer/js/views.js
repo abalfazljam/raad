@@ -2,7 +2,7 @@
 /* Raad DM — views: downloads / scheduler / idm / settings */
 window.Views = {};
 const state = {
-  filter: 'all', search: '',
+  filter: 'all', search: '', sort: 'date-desc', dateFilter: 'all',
   rows: new Map(),        // id -> mounted row elements {root, pct, pbar, meta, chip, act, top}
   rowsData: [],           // full filtered dataset (windowed rendering source)
   speeds: new Map(),      // id -> speed (for status bar total)
@@ -17,6 +17,21 @@ Views.rowHeight = () => (document.documentElement.dataset.density === 'compact' 
 
 Views.renderDownloads = async function (root) {
   root.innerHTML = '';
+  /* sort + date filter (v1.5): the restored IDM list must render newest-first
+   * like IDM's own window, and stay filterable by date */
+  const sortSel = h('select', { class: 'select', title: t('sortBy'), style: { width: 'auto' } },
+    h('option', { value: 'date-desc', text: t('sortNew') }),
+    h('option', { value: 'date-asc', text: t('sortOld') }),
+    h('option', { value: 'name', text: t('sortName') }));
+  sortSel.value = state.sort;
+  sortSel.onchange = () => { state.sort = sortSel.value; Views.refreshList(true); };
+  const dateSel = h('select', { class: 'select', title: t('filterDate'), style: { width: 'auto' } },
+    h('option', { value: 'all', text: t('dateAll') }),
+    h('option', { value: 'today', text: t('dateToday') }),
+    h('option', { value: 'week', text: t('dateWeek') }),
+    h('option', { value: 'month', text: t('dateMonth') }));
+  dateSel.value = state.dateFilter;
+  dateSel.onchange = () => { state.dateFilter = dateSel.value; Views.refreshList(true); };
   const toolbar = h('div', { class: 'dl-toolbar' },
     h('div', { class: 'top' },
       h('div', { class: 'search' },
@@ -24,9 +39,11 @@ Views.renderDownloads = async function (root) {
         searchInput = h('input', { class: 'input', type: 'text', placeholder: t('phSearch'), oninput: (e) => { state.search = e.target.value; Views.refreshList(); } })
       ),
       h('div', { class: 'grow' }),
-      h('button', { class: 'btn', title: t('btnStartAll'), html: ic.play + '<span>' + t('btnStartAll') + '</span>', onclick: () => { window.raad.dl.resumeAll(); toast(t('ok'), t('btnStartAll')); } }),
-      h('button', { class: 'btn', title: t('btnPauseAll'), html: ic.pause + '<span>' + t('btnPauseAll') + '</span>', onclick: () => { window.raad.dl.pauseAll(); toast(t('ok'), t('btnPauseAll')); } }),
-      h('button', { class: 'btn', id: 'btnPaste', onclick: Views.clipboardModal, html: ic.clip + '<span>' + t('btnPaste') + '</span>' }),
+      sortSel,
+      dateSel,
+      /* NOTE: no mass Start-all here — with a restored IDM history one stray
+       * click would flood the connection. Per-row start, or the scheduler. */
+      h('button', { class: 'btn', id: 'btnPaste', onclick: () => Views.clipboardModal(), html: ic.clip + '<span>' + t('btnPaste') + '</span>' }),
       h('button', { class: 'btn primary', onclick: Views.addModal, html: ic.plus + '<span>' + t('btnAdd') + '</span>' })
     ),
     filterBar = h('div', { class: 'filters' })
@@ -107,7 +124,19 @@ Views.refreshFilters = async function () {
 };
 
 Views.refreshList = async function () {
-  const rows = await window.raad.dl.list({ filter: state.filter, search: state.search });
+  let rows = await window.raad.dl.list({ filter: state.filter, search: state.search });
+  /* date filter (client-side): items without any date only exist under "all" */
+  if (state.dateFilter !== 'all') {
+    const span = { today: 864e5, week: 7 * 864e5, month: 30 * 864e5 }[state.dateFilter] || 0;
+    const from = Date.now() - span;
+    rows = rows.filter(r => (r.completedAt || r.addedAt || 0) >= from);
+  }
+  /* ordering — newest first like IDM; manual rows (real dates) and the
+   * imported IDM block (rank-derived dates) interleave naturally */
+  const key = (r) => r.completedAt || r.addedAt || 0;
+  if (state.sort === 'date-asc') rows.sort((a, b) => key(a) - key(b));
+  else if (state.sort === 'name') rows.sort((a, b) => String(a.filename || '').localeCompare(String(b.filename || ''), 'fa'));
+  else rows.sort((a, b) => key(b) - key(a));
   state.rowsData = rows;
   const ids = new Set(rows.map(r => r.id));
   for (const id of [...state.rows.keys()]) if (!ids.has(id)) state.rows.delete(id);
@@ -221,9 +250,16 @@ function renderMeta(entry, r) {
     parts.push(h('span', { class: 'sep', text: '•' }));
   }
   parts.push(h('span', { text: fmtBytes(r.received) + (r.size ? ' / ' + fmtBytes(r.size) : '') }));
-  if (r.completedAt) {
+  /* date — shown only when it is a REAL timestamp (real download date or
+   * the day the item was added). Restored IDM rows without a stored date
+   * show a dash instead of a made-up one. */
+  const dateTs = r.completedAt || r.addedAt;
+  if (dateTs && r.dateReal !== false) {
     parts.push(h('span', { class: 'sep', text: '•' }));
-    parts.push(h('span', { text: fmtDate(r.completedAt) }));
+    parts.push(h('span', { text: fmtDate(dateTs) }));
+  } else if (r.source === 'idm') {
+    parts.push(h('span', { class: 'sep', text: '•' }));
+    parts.push(h('span', { class: 'dim-tag', title: t('dateUnknownTip'), text: t('dateUnknown') }));
   }
   if (r.error) {
     parts.push(h('span', { class: 'sep', text: '•' }));
@@ -297,7 +333,10 @@ Views.addModal = function () {
 
 /* ---- clipboard modal (single + multi link import) ---- */
 Views.clipboardModal = async function (preUrls) {
-  const urls = preUrls || await window.raad.clip.parse();
+  /* v1.5 FIX: toolbar passed the CLICK EVENT as `preUrls`, so `urls.length`
+   * was undefined and the modal always said "nothing found" — even with a
+   * valid link in the clipboard. Only accept a real string array. */
+  const urls = (Array.isArray(preUrls) && preUrls.length) ? preUrls : await window.raad.clip.parse();
   if (!urls.length) return toast(t('clipEmpty'), '', 'warn');
   const boxes = [];
   const list = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '260px', overflowY: 'auto' } });
@@ -348,8 +387,26 @@ Views.renderScheduler = async function (root) {
     h('h2', { html: ic.clock + '<span>' + t('schTitle') + '</span>' }),
     h('div', { class: 'actions' }, h('button', { class: 'btn primary', html: ic.plus + '<span>' + t('schNew') + '</span>', onclick: () => schedModal() }))
   );
+  /* v1.5: the mass Start-all/Pause-all buttons moved here — their only safe
+   * use is a scheduled window. One explicit click in this context is fine;
+   * on the downloads toolbar next to a 4000-row restored history they were
+   * an accident waiting to happen. */
+  const qCard = h('div', { class: 'card queue-card' },
+    h('div', { class: 'q-left' },
+      h('h4', { text: t('queueTitle') }),
+      h('p', { text: t('queueDesc') })),
+    h('div', { class: 'q-btns' },
+      h('button', { class: 'btn', html: ic.pause + '<span>' + t('btnPauseAll') + '</span>', onclick: () => { window.raad.dl.pauseAll(); toast(t('ok'), t('btnPauseAll')); } }),
+      h('button', {
+        class: 'btn', html: ic.play + '<span>' + t('btnStartQueue') + '</span>',
+        onclick: async () => {
+          const ok = await confirmDialog(t('startQueueTitle'), t('startQueueText'), t('btnStartQueue'));
+          if (ok) { window.raad.dl.resumeAll(); toast(t('ok'), t('btnStartQueue')); }
+        }
+      }))
+  );
   const grid = h('div', { class: 'sched-grid stagger' });
-  root.append(head, grid);
+  root.append(head, qCard, grid);
   const items = await window.raad.sched.list();
   if (!items.length) {
     grid.append(h('div', { class: 'empty', style: { gridColumn: '1/-1' } },

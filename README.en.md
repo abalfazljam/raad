@@ -25,29 +25,30 @@
 
 ## ✨ Features
 
-- 🚀 **Multi-segment download engine** — up to 32 parallel connections per file, just like IDM
+- 🚀 **Multi-segment download engine** — up to 32 parallel connections per file, just like IDM; CDN redirects, pause/resume and the speed limiter are fully working and verified byte-perfect (MD5) against source files
 - ⏸ **Pause / Stop / Resume** — even after closing the app (a state file is kept next to unfinished files)
-- 📥 **Download queue** — adjustable number of concurrent downloads + “Start all / Pause all”
-- 🗂 **Automatic categorization** — Video / Music / Archive / Program / Document / Image in separate subfolders
+- 📥 **Download queue** — adjustable number of concurrent downloads; bulk start/pause lives only in the Scheduler section (a stray click can never flood your connection)
+- 🗂 **IDM-style categories** — Video / Audio / Image / Archive / Program / Document each with a **dedicated save folder** (Categories view) or automatic subfolders
 - 🐢 **Global speed limit** — without dropping the active downloads
 - ⏰ **Scheduler** — daily/weekly time windows + optional auto shutdown after the queue drains
 - 📋 **Clipboard monitor** — automatic detection of one or many copied links + batch add with checkboxes
 - 🌐 **Chrome & Firefox extensions** — clicking a download link opens Raad's floating window (the IDM experience); toggle interception with one click (OFF badge on the icon)
-- 🔄 **IDM migration** — reads “the entire list you see inside IDM” directly from the **Windows registry** (`DownloadManager\<n>` record subkeys with their `Url0` value — the same source IDM backup tools rely on) + every `UrlHistory*` file (merged & deduped, up to 20,000 entries). Deleted files do not matter — everything comes over; items land as **“Ready” and nothing downloads automatically** — you start each one yourself
+- 🔄 **IDM migration** — reads “the entire list you see inside IDM” directly from the **Windows registry** (`DownloadManager\<n>` record subkeys with their `Url0` value — the same source IDM backup tools rely on) + every `UrlHistory*` file (merged & deduped, up to 20,000 entries). Deleted files do not matter — everything comes over; items land **Completed, in IDM's own list order (newest first)** and nothing downloads automatically — re-downloading is an explicit per-row action
 - 🎨 **Fully customizable appearance** — dark/light × 3 styles (glass, flat, soft) × 6 preset accents + **custom accent color** + corner radius + text size + static background glow + compact mode
 - 🌍 **Bilingual** — Persian/English with automatic RTL/LTR; Vazirmatn font bundled
+- ⚡ **Light & stable** — no GPU process (hardware acceleration off); the executable carries the Raad icon and "Raad Download Manager" metadata in Task Manager
 
-## 🖼 Downloads list (redesigned — v1.3)
+## 🖼 Downloads list (redesigned)
 
 | 1,000+ items (windowed rendering) | Light mode |
 |---|---|
 | ![downloads](screenshots/view-downloads-1000-rows.png) | ![light](screenshots/view-downloads-light.png) |
 
-| Floating download window (IDM-style) | Clipboard batch import |
+| Categories (a folder per file type) | Floating download window (IDM-style) |
 |---|---|
-| ![dialog](screenshots/dialog.png) | ![clipboard](screenshots/modal-clipboard.png) |
+| ![cats](screenshots/view-cats.png) | ![dialog](screenshots/dialog.png) |
 
-Fixed-height rows with the file name + URL + progress bar + size/date + action buttons — double-click a row to open the file. Only the visible rows exist in the DOM, so the UI stays smooth with thousands of items and rows physically cannot overlap. Items imported from IDM show a “Ready” chip and never download until you press their play button.
+Fixed-height rows with the file name + URL + progress bar + size/**date** + action buttons — double-click a row to open the file. Only the visible rows exist in the DOM, so the UI stays smooth with thousands of items and rows physically cannot overlap. The toolbar adds **sorting** (newest/oldest/name) and a **date filter** (today / last 7 / last 30 days); items imported from IDM appear **Completed**, in IDM's own order, and re-downloading is an explicit per-row action.
 
 ## 📥 Install (no installer, no commands)
 
