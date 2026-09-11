@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-mode="dark" data-style="glass" data-accent="indigo" data-anim="on">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; script-src 'self'" />
+  <title>Raad Download Manager</title>
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/views.css" />
+  <link rel="stylesheet" href="css/themes.css" />
+</head>
+<body>
+  <div class="bg-glow"><div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+    <div class="deco aurora-a"></div><div class="deco aurora-b"></div>
+    <div class="deco star-field"></div><div class="deco star-field sf2"></div>
+    <div class="deco wave-a"></div><div class="deco wave-b"></div>
+    <div class="deco particle-field pf1"></div><div class="deco particle-field pf2"></div>
+    <div class="deco deco-blob mb1"></div><div class="deco deco-blob mb2"></div><div class="deco deco-blob mb3"></div>
+  </div>
+
+  <!-- ══════════ custom title bar ══════════ -->
+  <header id="titlebar">
+    <div class="tb-brand">
+      <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M13 2 4.5 13.5h5.2L8.6 22l8.9-11.5h-5.3L13 2z"/></svg></span>
+      <span class="tb-title">Raad</span>
+      <span class="tb-badge" data-i="badge">دانلود منیجر</span>
+    </div>
+    <div class="tb-drag"></div>
+    <div class="tb-actions">
+      <button class="tb-btn" id="tbTheme" title="dark / light">
+        <svg class="ic-sun" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5 2 3h-4l2-3zm0 20-2-3h4l-2 3zM2 12l3-2v4l-3-2zm20 0-3 2v-4l3 2zM4.2 4.2l3.5 1-2.4 2.4-1.1-3.4zm15.6 15.6-3.5-1 2.4-2.4 1.1 3.4zM19.8 4.2l-1 3.5-2.4-2.4 3.4-1.1zM4.2 19.8l1-3.5 2.4 2.4-3.4 1.1z"/></svg>
+        <svg class="ic-moon" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M20.7 14.9A8.6 8.6 0 0 1 9.1 3.3 8.6 8.6 0 1 0 20.7 14.9z"/></svg>
+      </button>
+      <button class="tb-btn" id="tbLang" title="fa / en"><span style="font-weight:700;font-size:11px">EN</span></button>
+      <span class="tb-sep"></span>
+      <button class="tb-btn" id="tbMin"><svg viewBox="0 0 24 24" width="14" height="14"><path stroke="currentColor" stroke-width="2" d="M5 12h14"/></svg></button>
+      <button class="tb-btn" id="tbMax">
+        <svg class="ic-max" viewBox="0 0 24 24" width="13" height="13"><rect x="5" y="5" width="14" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <svg class="ic-unmax" viewBox="0 0 24 24" width="13" height="13"><rect x="4" y="8" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 4h12v12" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <button class="tb-btn tb-close" id="tbClose"><svg viewBox="0 0 24 24" width="14" height="14"><path stroke="currentColor" stroke-width="2" d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+  </header>
+
+  <div id="shell">
+    <!-- ══════════ sidebar ══════════ -->
+    <nav id="sidebar">
+      <button class="nav-item active" data-view="downloads">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M12 3v10.6l3.3-3.3 1.4 1.4-5.7 5.7-5.7-5.7 1.4-1.4 3.3 3.3V3h2zM5 19h14v2H5v-2z"/></svg>
+        <span data-i="navDownloads">دانلودها</span>
+        <b class="nav-badge" id="badgeActive" hidden></b>
+      </button>
+      <button class="nav-item" data-view="scheduler">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2zm1 5v5.4l4 2.3-.8 1.6L11 13.5V7h2z"/></svg>
+        <span data-i="navScheduler">زمان‌بندی</span>
+      </button>
+      <button class="nav-item" data-view="idm">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M8 3h8l1 3H7l1-3zM5 8h14l1.5 13h-17L5 8zm6 2v6.2l-2.6-2.6-1.4 1.4L12 20l5-5-1.4-1.4L13 16.2V10h-2z"/></svg>
+        <span data-i="navIdm">انتقال از IDM</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="m10.2 3 .4 2.2c-.7.3-1.3.6-1.9 1.1l-2.1-.8-1.8 3.1 1.7 1.4a7 7 0 0 0 0 2.2l-1.7 1.4 1.8 3.1 2.1-.8c.6.5 1.2.8 1.9 1.1l-.4 2.2h3.6l.4-2.2c.7-.3 1.3-.6 1.9-1.1l2.1.8 1.8-3.1-1.7-1.4a7 7 0 0 0 0-2.2l1.7-1.4-1.8-3.1-2.1.8c-.6-.5-1.2-.8-1.9-1.1L13.8 3h-3.6zM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>
+        <span data-i="navSettings">تنظیمات</span>
+      </button>
+      <div class="side-spacer"></div>
+      <div class="side-foot">
+        <div class="mini-stat" id="statTotalSpeed">0 KB/s</div>
+        <div class="mini-stat dim" id="statVersion">Raad v1.0.0</div>
+      </div>
+    </nav>
+
+    <!-- ══════════ main ══════════ -->
+    <main id="main">
+      <section id="view-downloads" class="view active"></section>
+      <section id="view-scheduler" class="view"></section>
+      <section id="view-idm" class="view"></section>
+      <section id="view-settings" class="view"></section>
+    </main>
+  </div>
+
+  <!-- ══════════ status bar ══════════ -->
+  <footer id="statusbar">
+    <div class="st-left">
+      <span class="st-dot on" id="stDot"></span>
+      <span id="stStatus" data-i="stReady">آماده</span>
+    </div>
+    <div class="st-right">
+      <span id="stActive"></span>
+      <span class="st-sep">•</span>
+      <span id="stSpeed">0 KB/s</span>
+      <span class="st-sep">•</span>
+      <button class="linklike" id="stLimit" data-i="stLimitOff">محدودیت سرعت: خاموش</button>
+    </div>
+  </footer>
+
+  <!-- overlays -->
+  <div id="modalRoot"></div>
+  <div id="toastRoot"></div>
+  <div id="ctxRoot"></div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/views.js"></script>
+  <script src="js/views2.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

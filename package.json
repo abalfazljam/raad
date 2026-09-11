@@ -1,0 +1,72 @@
+{
+  "name": "raad-dm",
+  "productName": "Raad Download Manager",
+  "version": "1.1.0",
+  "description": "Raad (Thunder) — a modern IDM-alternative download manager: multi-segment engine, pause/resume, scheduler, clipboard batch import, IDM migration and Chrome/Firefox extensions",
+  "main": "main/main.js",
+  "author": "Raad Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "dev.raad.dm",
+    "productName": "Raad Download Manager",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main/**/*",
+      "preload/**/*",
+      "renderer/**/*",
+      "assets/**/*",
+      "native/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icons/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "unicode": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Raad DM"
+    },
+    "portable": {
+      "artifactName": "RaadDM-Portable-${version}.exe"
+    },
+    "linux": {
+      "icon": "assets/icons",
+      "target": [
+        "AppImage"
+      ],
+      "category": "Network"
+    },
+    "mac": {
+      "icon": "assets/icons/icon.png",
+      "target": [
+        "dmg"
+      ]
+    }
+  }
+}

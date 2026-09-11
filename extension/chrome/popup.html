@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 300px; font: 13px -apple-system, 'Segoe UI', Tahoma, sans-serif; background: #0b1020; color: #e6eaf2; padding: 14px; }
+    .head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+    .logo { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; font-size: 15px; }
+    h1 { font-size: 14px; }
+    .status { margin-inline-start: auto; display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: #8b93a7; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #5b6478; }
+    .dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
+
+    /* big one-click ON/OFF banner */
+    .power {
+      display: flex; align-items: center; gap: 12px; width: 100%; text-align: start;
+      border: 1px solid rgba(52, 211, 153, .35); background: rgba(52, 211, 153, .1);
+      border-radius: 13px; padding: 12px 14px; cursor: pointer; color: #e6eaf2;
+      transition: background .2s, border-color .2s; margin-bottom: 11px;
+    }
+    .power:hover { filter: brightness(1.12); }
+    .power.off { border-color: rgba(251, 113, 133, .35); background: rgba(251, 113, 133, .1); }
+    .bulb { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; flex: 0 0 34px;
+             background: rgba(52, 211, 153, .2); color: #34d399; }
+    .power.off .bulb { background: rgba(251, 113, 133, .18); color: #fb7185; }
+    .ptxt { flex: 1; }
+    .ptxt b { display: block; font-size: 13px; }
+    .ptxt span { font-size: 10.5px; color: #8b93a7; }
+    .state { font-size: 10px; font-weight: 800; letter-spacing: .8px; padding: 3px 9px; border-radius: 20px;
+             background: rgba(52, 211, 153, .18); color: #34d399; }
+    .power.off .state { background: rgba(251, 113, 133, .16); color: #fb7185; }
+
+    .row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed rgba(148,163,214,.14); }
+    .row:last-of-type { border-bottom: none; }
+    .lbl { font-size: 12px; }
+    .lbl span { display: block; font-size: 10px; color: #8b93a7; margin-top: 2px; }
+    .switch { position: relative; width: 36px; height: 20px; flex: 0 0 36px; cursor: pointer; }
+    .switch input { display: none; }
+    .track { position: absolute; inset: 0; border-radius: 20px; background: rgba(148,163,214,.2); transition: .2s; }
+    .knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #8b93a7; transition: .2s; }
+    .switch input:checked ~ .track { background: #6366f1; }
+    .switch input:checked ~ .knob { transform: translateX(16px); background: #fff; }
+    textarea { width: 100%; height: 74px; margin-top: 8px; background: #141c34; color: #c7cee0; border: 1px solid rgba(148,163,214,.2); border-radius: 9px; padding: 8px; font: 10.5px Consolas, monospace; resize: none; outline: none; direction: ltr; }
+    textarea:focus { border-color: #6366f1; }
+    .btns { display: flex; gap: 7px; margin-top: 9px; }
+    button.save, button.ghost { flex: 1; padding: 7px 0; border-radius: 8px; border: none; cursor: pointer; font: 600 11.5px inherit; }
+    .save { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }
+    .ghost { background: rgba(148,163,214,.12); color: #c7cee0; }
+    .site-row button { flex: 1; background: rgba(251,191,36,.15); color: #fbbf24; border: none; border-radius: 8px; padding: 7px 0; cursor: pointer; font: 600 11.5px inherit; }
+    .msg { font-size: 10.5px; color: #8b93a7; margin-top: 8px; line-height: 1.7; text-align: center; }
+    .msg .fa { direction: rtl; display: block; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <div class="logo">⚡</div>
+    <h1>Raad</h1>
+    <div class="status"><span id="stTxt">checking…</span><span class="dot" id="stDot"></span></div>
+  </div>
+
+  <!-- one-click master switch -->
+  <button class="power" id="powerBtn" title="Click to enable / disable">
+    <span class="bulb" id="pBulb">⏻</span>
+    <span class="ptxt"><b id="pTitle">Interception: ON</b><span>غیرفعال/فعال کردن شنود دانلود با یک کلیک</span></span>
+    <span class="state" id="pState">ON</span>
+  </button>
+
+  <div class="row">
+    <div class="lbl">Send cookies<span>For sites that need login (recommended)</span></div>
+    <label class="switch"><input type="checkbox" id="swCookies"><span class="track"></span><span class="knob"></span></label>
+  </div>
+  <div class="row">
+    <div class="lbl">Notifications<span>Toast when a download is sent</span></div>
+    <label class="switch"><input type="checkbox" id="swNotify"><span class="track"></span><span class="knob"></span></label>
+  </div>
+  <div class="row site-row">
+    <button id="btnSite">Disable on this site</button>
+  </div>
+
+  <textarea id="cfg" spellcheck="false" placeholder='{"port":27500,"token":"…"}'></textarea>
+  <div class="btns">
+    <button class="ghost" id="btnPing">Test</button>
+    <button class="save" id="btnSave">Save config</button>
+  </div>
+  <div class="msg">Copy the JSON config from Raad → Settings → Browser extension
+    <span class="fa">JSON را از برنامه رعد ← تنظیمات ← افزونه مرورگر کپی کنید</span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

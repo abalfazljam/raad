@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-mode="dark" data-style="glass" data-accent="indigo" data-anim="on">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; script-src 'self'" />
+  <title>Raad — New download</title>
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/views.css" />
+  <style>
+    html, body { background: transparent; }
+    body { padding: 0; }
+  </style>
+</head>
+<body>
+  <div class="dlg-root">
+    <header id="titlebar" style="border-radius:14px 14px 0 0">
+      <div class="tb-brand">
+        <span class="logo"><svg viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M13 2 4.5 13.5h5.2L8.6 22l8.9-11.5h-5.3L13 2z"/></svg></span>
+        <span class="tb-title" data-i="dlgNewDl">دانلود جدید</span>
+      </div>
+      <div class="tb-drag"></div>
+      <div class="tb-actions">
+        <button class="tb-btn" id="dlgMin"><svg viewBox="0 0 24 24" width="14" height="14"><path stroke="currentColor" stroke-width="2" d="M5 12h14"/></svg></button>
+        <button class="tb-btn tb-close" id="dlgClose"><svg viewBox="0 0 24 24" width="14" height="14"><path stroke="currentColor" stroke-width="2" d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+    </header>
+
+    <div class="dlg-body">
+      <div class="dlg-head">
+        <div id="dlgIcon"></div>
+        <div style="min-width:0; flex:1">
+          <div class="dlg-name" id="dlgName">…</div>
+          <div class="dlg-url" id="dlgUrl"></div>
+        </div>
+      </div>
+
+      <div class="dlg-size-row">
+        <span class="lbl" data-i="size">حجم</span>
+        <span id="dlgSpin" class="spinner"></span>
+        <span class="val" id="dlgSize">…</span>
+        <span style="flex:1"></span>
+        <span class="chip acc" id="dlgSrc"></span>
+      </div>
+
+      <div class="field">
+        <label data-i="dlgFolder">ذخیره در</label>
+        <div class="row" id="dlgFolderRow">
+          <input class="input" id="dlgFolder" type="text" readonly style="direction:ltr" />
+          <button class="btn sm" id="dlgBrowse" data-i="browse">مرور…</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dlg-foot" style="border-radius:0 0 14px 14px">
+      <button class="btn" id="dlgCancel" data-i="cancel">انصراف</button>
+      <button class="btn" id="dlgQueue" data-i="dlgAddQueue">فقط به صف</button>
+      <button class="btn primary" id="dlgStart" data-i="dlgStartNow">شروع کن</button>
+    </div>
+  </div>
+
+  <script src="../js/i18n.js"></script>
+  <script src="dialog.js"></script>
+</body>
+</html>
