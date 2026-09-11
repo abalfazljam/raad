@@ -33,8 +33,9 @@ Views.renderSettings = async function (root) {
   ]));
 
   /* ---- Appearance ---- */
+  /* v1.3: the system-synced "auto" mode was removed — dark/light only */
   const modeSeg = h('div', { class: 'seg' });
-  for (const [val, key] of [['dark', 'modeDark'], ['light', 'modeLight'], ['auto', 'modeAuto']]) {
+  for (const [val, key] of [['dark', 'modeDark'], ['light', 'modeLight']]) {
     modeSeg.append(h('button', {
       class: s.mode === val ? 'on' : '', text: t(key),
       onclick: () => { window.raad.settings.set({ mode: val }); $$('.seg button', modeSeg).forEach(b => b.classList.remove('on')); }
@@ -244,6 +245,9 @@ Views.renderIdm = function (root) {
       h('div', { class: 'sum-chip' }, h('b', { text: (r.settings || []).length }), h('span', { text: t('idmSettings') })),
       h('div', { class: 'sum-chip' }, h('b', { text: r.totalValues || '—' }), h('span', { text: t('idmValues') }))
     ));
+    if (r.detail) {
+      resultsBox.append(h('div', { class: 'idm-note', style: { fontSize: '11px', lineHeight: 1.9 }, text: t('idmSources') + ' ' + r.detail }));
+    }
 
     if (r.settings && r.settings.length) {
       const guessCard = h('div', { class: 'card', style: { padding: '14px 18px' } }, h('h3', { style: { fontSize: '13px', marginBottom: '4px' }, text: t('idmGuess') }));
@@ -272,38 +276,46 @@ Views.renderIdm = function (root) {
     }
 
     const boxes = [];
+    const sel = r.entries.map(() => true);   // selection lives outside the DOM —
+    // the preview table shows only the first rows, but the import covers EVERYTHING selected
+    const PREVIEW = 400;
     const allCb = h('input', { type: 'checkbox', class: 'checkbox', checked: '' });
-    allCb.onchange = () => boxes.forEach(b => b.cb.checked = allCb.checked);
+    allCb.onchange = () => { for (let i = 0; i < sel.length; i++) sel[i] = allCb.checked; syncCount(); };
     const body = h('div', { class: 'idm-body' });
-    for (const en of r.entries) {
+    r.entries.slice(0, PREVIEW).forEach((en, i) => {
       const cb = h('input', { type: 'checkbox', class: 'checkbox', checked: '' });
-      boxes.push({ cb, en });
+      cb.onchange = () => { sel[i] = cb.checked; syncCount(); };
+      boxes.push({ cb, i });
       body.append(h('div', { class: 'idm-tr' },
         cb,
         h('span', { class: 'url', text: en.url }),
         h('span', { class: 'fn', text: en.filename || '—' }),
         h('span', { class: 'chip cat-chip', text: en.source || 'IDM' })
       ));
-    }
+    });
     const importBtn = h('button', {
       class: 'btn primary',
-      text: t('idmImport').replace('{n}', boxes.length),
+      text: t('idmImport').replace('{n}', sel.length),
       onclick: async () => {
-        const sel = boxes.filter(b => b.cb.checked).map(b => b.en);
-        if (!sel.length) return;
-        const res = await window.raad.idm.apply({ entries: sel, settings: applied });
+        const chosen = r.entries.filter((_, i) => sel[i]);
+        if (!chosen.length) return;
+        const res = await window.raad.idm.apply({ entries: chosen, settings: applied });
         toast(t('ok'), t('idmDone').replace('{n}', res.added));
         window.nav('downloads');
       }
     });
-    for (const b of boxes) b.cb.onchange = () => importBtn.textContent = t('idmImport').replace('{n}', boxes.filter(x => x.cb.checked).length);
+    function syncCount() { importBtn.textContent = t('idmImport').replace('{n}', sel.filter(Boolean).length); }
+    for (const b of boxes) b.cb.addEventListener('change', syncCount);
 
     resultsBox.append(h('div', { class: 'idm-table' },
       h('div', { class: 'idm-thead' }, allCb, h('span', { text: 'URL' }), h('span', { text: t('size') === 'حجم' ? 'نام فایل' : 'Filename' }), h('span', { text: '' })),
       body
     ));
+    if (r.entries.length > PREVIEW) {
+      resultsBox.append(h('div', { class: 'idm-note', text: t('idmShownN').replace('{n}', PREVIEW).replace('{total}', r.entries.length) }));
+    }
     resultsBox.append(h('div', { class: 'row', style: { justifyContent: 'flex-end', gap: '9px' } },
-      h('button', { class: 'btn', text: t('clipSelectAll'), onclick: () => { boxes.forEach(b => b.cb.checked = true); importBtn.textContent = t('idmImport').replace('{n}', boxes.length); } }),
+      h('button', { class: 'btn', text: t('clipSelectAll'), onclick: () => { allCb.checked = true; allCb.onchange(); } }),
       importBtn
     ));
   }

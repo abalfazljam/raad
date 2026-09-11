@@ -51,7 +51,7 @@ const T = () => STR[(store.get('settings', {}).language || 'fa')] || STR.fa;
 function defaultSettings() {
   return {
     language: 'fa',
-    mode: 'dark',            // dark | light | auto
+    mode: 'dark',            // dark | light  (the system-synced "auto" was removed in v1.3)
     style: 'glass',          // glass | flat | soft
     accent: 'indigo',        // indigo | emerald | amber | rose | cyan | violet
     animations: true,
@@ -186,6 +186,9 @@ async function init() {
 
   store = new Store(path.join(app.getPath('userData'), 'raad-data'));
   const settings = { ...defaultSettings(), ...store.get('settings', {}) };
+  /* v1.3 migration: the system-synced "auto" theme mode was removed
+   * (it triggered GPU repaint storms on some Windows machines) */
+  if (settings.mode !== 'light') settings.mode = 'dark';
   store.set('settings', settings);
 
   engine = new Engine(store);
@@ -421,9 +424,10 @@ function registerIpc() {
     return { id };
   });
 
-  /* nativeTheme sync */
+  /* nativeTheme sync (v1.3: the "follow system / auto" mode was removed —
+   * only manual dark/light remain) */
   ipcMain.handle('theme:sync', (_e, mode) => {
-    nativeTheme.themeSource = mode === 'auto' ? 'system' : mode;
+    nativeTheme.themeSource = mode === 'light' ? 'light' : 'dark';
     return { ok: true };
   });
 }

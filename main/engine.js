@@ -45,6 +45,9 @@ class Engine extends EventEmitter {
     this.applySettings(store.get('settings', {}));
     for (const r of this.history) {
       if (r.status === 'downloading' || r.status === 'queued') { r.status = 'paused'; r.speed = 0; }
+      /* v1.3 migration: IDM-imported links are PARKED history — never part of
+       * resume-all / scheduler runs, no matter which old version created them */
+      if (r.source === 'idm' && r.status === 'paused') r.parked = true;
     }
     store.set('history', this.history);
   }
@@ -104,9 +107,10 @@ class Engine extends EventEmitter {
       filename: U.sanitizeFilename(filename || U.filenameFromUrl(url) || 'download'),
       folder: folder || '',
       category: 'other', size: null, received: 0, speed: 0, eta: null,
-      /* start=false (IDM history import, "queue only") → land as PAUSED:
-       * never auto-starts, never counted as active, drained only on explicit resume. */
-      status: start ? 'queued' : 'paused', error: '', source,
+      /* start=false (IDM history import, "queue only") → land as PARKED:
+       * never auto-starts, never counted as active, ignored by resume-all &
+       * scheduler; starts only when the user resumes that exact row. */
+      status: start ? 'queued' : 'paused', parked: start ? false : true, error: '', source,
       addedAt: Date.now(), startedAt: null, completedAt: null,
       engine: U.isVideoSite(url) && this.useYtdlp ? 'yt' : 'http'
     };
@@ -440,7 +444,7 @@ class Engine extends EventEmitter {
   resume(id) {
     const rec = this.get(id);
     if (!rec || !['paused', 'failed'].includes(rec.status)) return;
-    rec.status = 'queued'; rec.error = '';
+    rec.status = 'queued'; rec.error = ''; rec.parked = false;  // explicit user action → no longer parked
     this._emitStatus(rec);
     this._drain();
   }
@@ -470,7 +474,10 @@ class Engine extends EventEmitter {
   }
 
   pauseAll() { for (const r of this.list({ filter: 'active' })) if (r.status === 'downloading') this.pause(r.id); }
-  resumeAll() { for (const r of this.list({ filter: 'paused' })) this.resume(r.id); }
+  /* resume-all deliberately skips PARKED items (IDM history imports): a mass
+   * "start" from the toolbar/tray/scheduler must never trigger hundreds of
+   * downloads the user did not personally choose. */
+  resumeAll() { for (const r of this.list({ filter: 'paused' })) { if (r.parked) continue; this.resume(r.id); } }
 
   /* ============ yt-dlp ============ */
   _findYtdlp() {

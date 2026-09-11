@@ -74,18 +74,17 @@ input, textarea, select, button { font: inherit; color: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 [dir="rtl"] .flip { transform: scaleX(-1); }
 
-/* ---------- background glow blobs ---------- */
+/* ---------- background glow blobs (v1.3: STATIC — the floating animation was
+ * removed; continuous blur repaints corrupted rendering on some GPUs) ---------- */
 .bg-glow { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 .glow { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .32; }
 [data-mode="light"] .glow { opacity: .2; }
 [data-glow="off"] .glow { opacity: 0 !important; }
 [data-glow="vivid"] .glow { opacity: .5; }
 [data-glow="vivid"][data-mode="light"] .glow { opacity: .32; }
-.g1 { width: 480px; height: 480px; background: var(--acc); top: -160px; inset-inline-start: -120px; animation: float1 16s ease-in-out infinite; }
-.g2 { width: 380px; height: 380px; background: var(--acc-deep); bottom: -140px; inset-inline-end: -100px; animation: float2 20s ease-in-out infinite; }
-.g3 { width: 260px; height: 260px; background: var(--acc2); top: 40%; inset-inline-start: 55%; opacity: .16; animation: float1 24s ease-in-out infinite reverse; }
-@keyframes float1 { 50% { transform: translate(60px, 40px) scale(1.08); } }
-@keyframes float2 { 50% { transform: translate(-50px, -30px) scale(1.1); } }
+.g1 { width: 480px; height: 480px; background: var(--acc); top: -160px; inset-inline-start: -120px; }
+.g2 { width: 380px; height: 380px; background: var(--acc-deep); bottom: -140px; inset-inline-end: -100px; }
+.g3 { width: 260px; height: 260px; background: var(--acc2); top: 40%; inset-inline-start: 55%; opacity: .16; }
 
 /* ═══════════ titlebar ═══════════ */
 #titlebar {
@@ -100,9 +99,7 @@ input, textarea, select, button { font: inherit; color: inherit; }
   width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: #fff;
   background: linear-gradient(135deg, var(--acc), var(--acc-deep));
   box-shadow: 0 4px 14px color-mix(in srgb, var(--acc) 45%, transparent);
-  animation: logoPulse 3.2s ease-in-out infinite;
 }
-@keyframes logoPulse { 50% { box-shadow: 0 4px 22px color-mix(in srgb, var(--acc) 70%, transparent); } }
 .tb-title { font-weight: 800; letter-spacing: .4px; font-size: 14px; }
 .tb-badge {
   font-size: 10.5px; color: var(--dim); border: 1px solid var(--border);
@@ -326,17 +323,15 @@ input[type="text"], input[type="number"], input[type="url"] { user-select: text;
 .ctx button.danger { color: var(--chip-err); }
 .ctx .sep { height: 1px; background: var(--border); margin: 4px 8px; }
 
-/* progress bars */
+/* progress bars (v1.3: static gradient — the infinite shimmer is gone) */
 .pbar { height: 5px; border-radius: 6px; background: var(--hover); overflow: hidden; position: relative; }
 .pbar > i {
   position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 6px;
   background: linear-gradient(90deg, var(--acc-deep), var(--acc), var(--acc2));
-  transition: width .5s ease; background-size: 200% 100%;
-  animation: shimmer 2.4s linear infinite;
+  transition: width .5s ease;
 }
-@keyframes shimmer { to { background-position: -200% 0; } }
 
-/* empty state */
+/* empty state (icon static since v1.3) */
 .empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 12px; color: var(--faint); padding: 40px 0;
@@ -344,9 +339,7 @@ input[type="text"], input[type="number"], input[type="url"] { user-select: text;
 .empty .e-ic {
   width: 84px; height: 84px; border-radius: 26px; display: grid; place-items: center;
   color: var(--acc); background: color-mix(in srgb, var(--acc) 12%, transparent);
-  animation: floaty 4s ease-in-out infinite;
 }
-@keyframes floaty { 50% { transform: translateY(-9px); } }
 .empty h4 { color: var(--dim); font-size: 15px; }
 .empty p { font-size: 12px; max-width: 320px; text-align: center; line-height: 1.9; }
 

@@ -21,7 +21,6 @@ const MAX_ENTRIES = 20000;
 const IDM_OWN_RE = /internetdownloadmanager\.com|tonec\.com|secure\.internetdownloadmanager/i;
 const URL_LINE_RE = /^(?:(?:https?|ftp):\/\/|www\.)\S+$/i;
 const URL_GLOBAL_RE = /\b(?:(?:https?|ftp):\/\/|www\.)[^\s"'<>()\[\]{}]+/gi;
-
 /* ---------- text decoding (any of: UTF-16LE BOM, UTF-16BE BOM, UTF-8/ANSI) ---------- */
 function decodeTextBuffer(buf) {
   if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) return buf.toString('utf16le', 2);
@@ -35,7 +34,7 @@ function decodeTextBuffer(buf) {
  * Tolerant by design: the FULL IDM history list must come over, including
  * entries whose local file was deleted long ago. We therefore:
  *   • scan every line (and embedded URLs inside longer lines)
- *   • accept scheme-less www.* URLs
+ *   • accept scheme-less www.* URLs and ftp:// links (IDM downloads FTP too)
  *   • never check whether the local file still exists (we can't know it)
  *   • only dedupe exact duplicate URLs, never drop otherwise
  */
@@ -50,7 +49,7 @@ function parseHistoryText(buf) {
     for (let url of urls) {
       url = url.replace(/[.,;:)\]]+$/, '').trim();
       if (/^www\./i.test(url)) url = 'http://' + url;
-      if (!/^https?:\/\//i.test(url)) continue;            // http(s) only for history import
+      if (!/^(?:https?|ftp):\/\//i.test(url)) continue;      // http(s)/ftp for history import
       if (url.length > 2000 || IDM_OWN_RE.test(url)) continue;
       if (seen.has(url)) continue;
       seen.add(url);
@@ -143,25 +142,49 @@ function decodeIdmStrings(buf) {
 
 const FILENAME_RE = new RegExp('\\.(' + Object.values(U.EXT_CATS).flat().concat(['bin', 'dat', 'part']).join('|') + ')$', 'i');
 
-function extractEntries(values) {
-  const entries = [];
+/* ---------- shared URL collector (dedupe + cap) ---------- */
+function makeCollector(cap = MAX_ENTRIES) {
   const seen = new Set();
+  const entries = [];
+  return {
+    entries,
+    add(url, referrer = '', filename = '', source = 'IDM') {
+      url = String(url || '').trim();
+      if (/^www\./i.test(url)) url = 'http://' + url;
+      if (!/^(?:https?|ftp):\/\//i.test(url)) return false;
+      if (url.length > 2000 || IDM_OWN_RE.test(url)) return false;
+      if (seen.has(url)) return false;
+      seen.add(url);
+      entries.push({ url, referrer, filename, source, key: '', valueName: '' });
+      return true;
+    },
+    full() { return entries.length >= cap; }
+  };
+}
+
+/* one IDM record blob → one entry (first URL = download, second = referrer) */
+function entryFromBlob(strings, add) {
+  const urls = strings.filter(x => /^(?:(?:https?|ftp):\/\/|www\.)/i.test(x.s) && x.s.length < 2000 && !IDM_OWN_RE.test(x.s));
+  if (!urls.length) return false;
+  const url = urls[0].s;
+  const referrer = urls.length > 1 ? urls[1].s : '';
+  const fnames = strings
+    .filter(x => !/^(?:(?:https?|ftp):\/\/|www\.)/i.test(x.s) && x.s.length < 300 && FILENAME_RE.test(x.s))
+    .sort((a, b) => b.s.length - a.s.length);
+  const filename = fnames.length ? fnames[0].s.split(/[\\/]/).pop() : (U.filenameFromUrl(url) || '');
+  return add(url, referrer, U.sanitizeFilename(filename, ''));
+}
+
+/* .reg file binary values → entries (legacy path, kept for old exports) */
+function extractEntries(values, collector) {
+  const col = collector || makeCollector();
   for (const v of values) {
     if (v.type !== 'binary' || !Buffer.isBuffer(v.data) || v.data.length < 8) continue;
     const strings = decodeIdmStrings(v.data).sort((a, b) => a.pos - b.pos);
-    const url = (strings.find(x => /^https?:\/\//i.test(x.s) && x.s.length < 2000 && !IDM_OWN_RE.test(x.s)) || {}).s;
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    const others = strings.filter(x => x.s !== url && /^https?:\/\//i.test(x.s) && !IDM_OWN_RE.test(x.s));
-    const referrer = others.length ? others[0].s : '';
-    const fnameCandidates = strings
-      .filter(x => !/^https?:\/\//i.test(x.s) && x.s.length < 200 && FILENAME_RE.test(x.s) && !/^[a-z]:\\/i.test(x.s))
-      .sort((a, b) => b.s.length - a.s.length);
-    const filename = fnameCandidates.length ? fnameCandidates[0].s.split(/[\\/]/).pop() : (U.filenameFromUrl(url) || '');
-    entries.push({ url, referrer, filename: U.sanitizeFilename(filename, ''), key: v.key, valueName: v.name });
-    if (entries.length >= MAX_ENTRIES) break;
+    entryFromBlob(strings, (u, r, f) => col.add(u, r, f));
+    if (col.full()) break;
   }
-  return entries;
+  return col.entries;
 }
 
 /* ---------- settings guesses (strict) ---------- */
@@ -252,32 +275,106 @@ function queryWinSettings() {
   });
 }
 
+/* ---------- the REAL main list lives in the registry ----------
+ * IDM keeps the download list you see in its window inside
+ * HKEY_CURRENT_USER\Software\DownloadManager as REG_BINARY records —
+ * UrlHistory.txt only mirrors recent activity. A full recursive
+ * `reg query /s` pulls EVERY record (files may long be deleted —
+ * they are still imported). */
+function queryRegTree() {
+  return new Promise((resolve) => {
+    execFile('reg', ['query', 'HKCU\\Software\\DownloadManager', '/s'],
+      { timeout: 60000, maxBuffer: 64 * 1024 * 1024 },
+      (err, stdout) => resolve(err ? '' : String(stdout || '')));
+  });
+}
+
+/* `reg query /s` output parser:
+ *   HKEY_CURRENT_USER\...\Key
+ *       ValueName    REG_BINARY    5C004400...   (long hex wraps onto
+ *                                                    20-space indented lines)
+ *       ValueName    REG_DWORD    0x20
+ */
+function parseRegQuery(text) {
+  const values = [];
+  let cur = null;
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    if (/^HKEY_/i.test(rawLine)) { cur = null; continue; }
+    const m = /^ {4}(.+?)\s{2,}(REG_[A-Z_]+)\s+(.*)$/.exec(rawLine);
+    if (m) { cur = { name: m[1], type: m[2], data: m[3].trim() }; values.push(cur); continue; }
+    if (cur && cur.type === 'REG_BINARY' && /^ {6,}\S/.test(rawLine)) {
+      const hexish = rawLine.trim();
+      if (/^[0-9A-Fa-f]+( [0-9A-Fa-f]+)*$/.test(hexish)) cur.data += ' ' + hexish;
+    }
+  }
+  return values;
+}
+
+function entriesFromRegQuery(text, col) {
+  const values = parseRegQuery(text);
+  let blobs = 0;
+  for (const v of values) {
+    if (v.type !== 'REG_BINARY' || !v.data) continue;
+    let buf;
+    try { buf = Buffer.from(v.data.replace(/\s+/g, ''), 'hex'); } catch { continue; }
+    if (buf.length < 12) continue;
+    blobs++;
+    const strings = decodeIdmStrings(buf).sort((a, b) => a.pos - b.pos);
+    entryFromBlob(strings, (u, r, f) => col.add(u, r, f));
+    if (col.full()) break;
+  }
+  return { values: values.length, blobs };
+}
+
 function importAuto() {
   return new Promise((resolve) => {
     if (process.platform !== 'win32') {
       return resolve({ ok: false, error: 'auto-import works only on Windows. On the old PC copy %APPDATA%\\IDM\\UrlHistory.txt and import it via the file method.' });
     }
     (async () => {
-      const merged = new Map();
+      const col = makeCollector();
+      const srcs = [];
+
+      /* 1) registry — the MAIN list (usually the big one) */
+      const regText = await queryRegTree();
+      if (regText) {
+        const { values, blobs } = entriesFromRegQuery(regText, col);
+        srcs.push('registry: ' + blobs + '/' + values + ' records → ' + col.entries.length);
+      } else {
+        srcs.push('registry: not readable');
+      }
+
+      /* 2) every UrlHistory* text file (recent history mirror) */
       const files = [];
+      const afterReg = col.entries.length;
       for (const f of idmHistoryFiles()) {
         try {
           const parsed = parseHistoryText(fs.readFileSync(f));
-          if (parsed.length) {
-            files.push(f);
-            for (const en of parsed) if (!merged.has(en.url)) merged.set(en.url, en);
-          }
+          if (!parsed.length) continue;
+          files.push(f);
+          let added = 0;
+          for (const en of parsed) { if (!col.add(en.url, '', en.filename)) break; added++; }
+          srcs.push(path.basename(f) + ': +' + added);
         } catch { }
+        if (col.full()) break;
       }
-      const entries = [...merged.values()].slice(0, MAX_ENTRIES);
+
+      const entries = col.entries;
       const settings = await queryWinSettings();
       if (!entries.length && !settings.length) {
         return resolve({
           ok: false,
-          error: 'IDM history not found (scanned every UrlHistory* file in %APPDATA%\\IDM). Copy that file from the old PC and use the file method — or export the full list from IDM: Tasks → Export.'
+          error: 'IDM history not found. Close IDM completely and retry — or export the list from IDM: Tasks → Export, and import the text file here.',
+          detail: srcs.join(' | ')
         });
       }
-      resolve({ ok: true, entries, settings, totalValues: entries.length, histFile: files[0] || '', histFiles: files });
+      resolve({
+        ok: true, entries, settings,
+        totalValues: entries.length,
+        histFile: files[0] || '', histFiles: files,
+        fromRegistry: afterReg, fromFiles: entries.length - afterReg,
+        detail: srcs.join(' | ')
+      });
     })();
   });
 }
@@ -289,7 +386,9 @@ function importFromFile(filePath) {
     const values = parseRegFile(buf);
     const dmValues = values.filter(v => /downloadmanager/i.test(v.key));
     const pool = dmValues.length ? dmValues : values;
-    return { mode: 'reg', entries: extractEntries(pool), settings: guessSettings(pool), totalValues: values.length };
+    const col = makeCollector();
+    extractEntries(pool, col);
+    return { mode: 'reg', entries: col.entries, settings: guessSettings(pool), totalValues: values.length };
   }
   return { mode: 'list', entries: parseHistoryText(buf), settings: [], totalValues: 0 };
 }
@@ -297,5 +396,6 @@ function importFromFile(filePath) {
 module.exports = {
   parseRegFile, decodeIdmStrings, extractEntries, guessSettings,
   parseHistoryText, extractFromListFile: parseHistoryText,
+  parseRegQuery, entriesFromRegQuery, makeCollector,
   importFromFile, importAuto, idmHistoryPaths, idmHistoryFiles, idmHistoryDir
 };

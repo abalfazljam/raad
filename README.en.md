@@ -33,21 +33,21 @@
 - ⏰ **Scheduler** — daily/weekly time windows + optional auto shutdown after the queue drains
 - 📋 **Clipboard monitor** — automatic detection of one or many copied links + batch add with checkboxes
 - 🌐 **Chrome & Firefox extensions** — clicking a download link opens Raad's floating window (the IDM experience); toggle interception with one click (OFF badge on the icon)
-- 🔄 **IDM migration** — history from IDM's own `UrlHistory*` files (all of them merged, up to 20,000 entries) + settings from the registry; imported items land as **paused** and you start each one yourself
-- 🎨 **Fully customizable appearance** — dark/light/system × 3 styles (glass, flat, soft) × 6 preset accents + **custom accent color** + corner radius + text size + glow intensity + compact mode
+- 🔄 **IDM migration** — reads “the entire list you see inside IDM” from the **Windows registry** + every `UrlHistory*` file (merged & deduped, up to 20,000 entries). Deleted files do not matter — everything comes over; items land as **“Ready” and nothing downloads automatically** — you start each one yourself
+- 🎨 **Fully customizable appearance** — dark/light × 3 styles (glass, flat, soft) × 6 preset accents + **custom accent color** + corner radius + text size + static background glow + compact mode
 - 🌍 **Bilingual** — Persian/English with automatic RTL/LTR; Vazirmatn font bundled
 
-## 🖼 Downloads list (redesigned)
+## 🖼 Downloads list (redesigned — v1.3)
 
-| Downloads — dark | Light mode |
+| 1,000+ items (windowed rendering) | Light mode |
 |---|---|
-| ![downloads](screenshots/view-downloads-populated.png) | ![light](screenshots/view-downloads-light.png) |
+| ![downloads](screenshots/view-downloads-1000-rows.png) | ![light](screenshots/view-downloads-light.png) |
 
 | Floating download window (IDM-style) | Clipboard batch import |
 |---|---|
 | ![dialog](screenshots/dialog.png) | ![clipboard](screenshots/modal-clipboard.png) |
 
-Every row shows the file name + URL + progress bar + speed/ETA + action buttons (pause/resume, folder, delete) — double-click a row to open the file. “Start all / Pause all” buttons sit above the list.
+Fixed-height rows with the file name + URL + progress bar + size/date + action buttons — double-click a row to open the file. Only the visible rows exist in the DOM, so the UI stays smooth with thousands of items and rows physically cannot overlap. Items imported from IDM show a “Ready” chip and never download until you press their play button.
 
 ## 📥 Install (no installer, no commands)
 
@@ -70,14 +70,13 @@ Then in Raad: **Settings ← Browser extension ← Copy JSON**, and Paste + Save
 
 ## 🔄 Transfer history & settings from IDM
 
-IDM does not keep download history in the registry — the `UrlHistory.txt` file is made for that (per IDM's official documentation). Raad's transfer options:
+IDM's main list (what you see in its window) lives in the **Windows registry**, and `UrlHistory.txt` mirrors recent activity. Raad's “Automatic transfer” reads **both sources** and merges them — deleted files do not matter, everything comes over, and nothing downloads until you start it:
 
 | Method | Description |
 |---|---|
-| **Automatic** (same Windows PC) | In Raad: “IDM migration ← Automatic transfer” — reads `%APPDATA%\IDM\UrlHistory.txt` + settings from the registry. IDM must be closed. |
-| **History file** | From the old PC: open `%APPDATA%\IDM` ← copy `UrlHistory.txt` ← in Raad: “History file / IDM export” |
+| **Automatic** (same Windows PC) | In Raad: “IDM migration ← Automatic transfer” — the whole list from the registry (`HKEY_CURRENT_USER\Software\DownloadManager`) + every `UrlHistory*` file in `%APPDATA%\IDM`. IDM must be closed. |
+| **History file** | From the old PC: export `HKEY_CURRENT_USER\Software\DownloadManager` in regedit, or copy `%APPDATA%\IDM\UrlHistory.txt` ← in Raad: “History file / IDM export” |
 | **Link list** | In IDM itself: `Tasks → Export` menu (text output), or any text file containing links |
-| **IDM settings** | In `regedit`: `HKEY_CURRENT_USER\Software\DownloadManager` → Export → give the `.reg` file to Raad |
 
 ## 🛠 Build from source
 

@@ -68,10 +68,9 @@ window.state = window.state || {}; // shared with views.js state object
   $('#tbClose').onclick = () => window.raad.win.close();
   $('#tbTheme').onclick = async () => {
     const s = await window.raad.settings.get();
-    const order = ['dark', 'light', 'auto'];
-    const next = order[(order.indexOf(s.mode) + 1) % 3];
+    const next = s.mode === 'dark' ? 'light' : 'dark';   // v1.3: dark ⇄ light only
     await window.raad.settings.set({ mode: next });
-    toast(t('ok'), next === 'dark' ? t('modeDark') : next === 'light' ? t('modeLight') : t('modeAuto'));
+    toast(t('ok'), next === 'dark' ? t('modeDark') : t('modeLight'));
   };
   $('#tbLang').onclick = async () => {
     const s = await window.raad.settings.get();
@@ -102,6 +101,13 @@ window.state = window.state || {}; // shared with views.js state object
   /* ---------- sidebar ---------- */
   $$('.nav-item').forEach(n => n.onclick = () => nav(n.dataset.view));
 
+  /* a big IDM import fires one dl:added per record — coalesce the redraws */
+  let bulkT = null;
+  function scheduleBulkRefresh() {
+    if (bulkT) return;
+    bulkT = setTimeout(() => { bulkT = null; Views.refreshList(); }, 350);
+  }
+
   /* ---------- live events from main ---------- */
   window.raad.onEvent(async (e) => {
     switch (e.type) {
@@ -113,8 +119,9 @@ window.state = window.state || {}; // shared with views.js state object
         const rec = entry ? entry.rec : null;
         if (entry && rec) {
           rec.status = e.status; rec.error = e.error || '';
-          entry.chip.className = 'chip ' + ({ queued: '', downloading: 'acc', paused: 'warn', completed: 'ok', failed: 'err' }[e.status] || '');
-          entry.chip.textContent = t(e.status);
+          const chip = chipFor(rec);
+          entry.chip.className = chip.className;
+          entry.chip.textContent = chip.textContent;
           entry.pct.textContent = pctText(rec);
           entry.pbar.style.width = pctW(rec);
           renderAct(entry, rec);
@@ -126,23 +133,14 @@ window.state = window.state || {}; // shared with views.js state object
         if (e.status === 'completed' && rec) entry && entry.root.classList.add('flash');
         break;
       }
-      case 'dl:added': {
-        if (currentView === 'downloads') {
-          const show = state.filter === 'all' || (state.filter === 'active' && ['queued', 'downloading'].includes(e.rec.status));
-          if (show && !state.rows.has(e.rec.id)) {
-            $('.empty') && $('.empty').remove();
-            listEl.prepend(buildRow(e.rec));
-          }
-        }
+      case 'dl:added':
+        if (currentView === 'downloads') scheduleBulkRefresh();
         Views.refreshFilters();
         break;
-      }
-      case 'dl:removed': {
-        const entry = state.rows.get(e.id);
-        if (entry) { entry.root.remove(); state.rows.delete(e.id); state.speeds.delete(e.id); updateStatusTotals(); }
+      case 'dl:removed':
+        if (currentView === 'downloads') scheduleBulkRefresh();
         Views.refreshFilters();
         break;
-      }
       case 'clip:urls':
         toast(t('clipToast').replace('{n}', e.urls.length), e.urls[0].slice(0, 60), 'link');
         if (currentView === 'downloads') Views.clipboardModal(e.urls);

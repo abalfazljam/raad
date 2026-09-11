@@ -152,4 +152,47 @@ for (const f of files) for (const en of idm.parseHistoryText(fs.readFileSync(f))
 ok(mergedSet.size === 3, 'v1.2: merged files dedupe to 3 urls (got ' + mergedSet.size + ')');
 ok([...mergedSet].every(u => !/internetdownloadmanager/.test(u)), 'v1.2: IDM own domain still filtered');
 
+/* ---- v1.3: ftp links are imported too (IDM downloads FTP as well) ---- */
+const txt13 = 'ftp://mirror.example.org/pub/tools/tool.zip\r\nhttps://a.example/x.zip';
+fs.writeFileSync('/tmp/raad-test-v13.txt', txt13);
+const r6 = idm.importFromFile('/tmp/raad-test-v13.txt');
+ok(r6.entries.length === 2, 'v1.3: ftp:// imported alongside http (got ' + r6.entries.length + ')');
+
+/* ---- v1.3: `reg query /s` output parsing (the live IDM MAIN list) ---- */
+const qblob = utf16blob(
+  'https://cdn.example.com/files/Movie.2023.1080p.BluRay.mkv',
+  'https://movies-site.example.com/download/123',
+  'C:\\Users\\TestUser\\Downloads\\Movie.2023.1080p.BluRay.mkv'
+);
+const hexStr = [...qblob].map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+const hexLines = [];
+for (let i = 0; i < hexStr.length; i += 50) hexLines.push('                    ' + hexStr.slice(i, i + 50));
+const queryOut = [
+  'HKEY_CURRENT_USER\\Software\\DownloadManager',
+  '',
+  '    FThread0    REG_BINARY    ' + hexLines[0].trim(),
+  ...hexLines.slice(1),
+  '',
+  '',
+  'HKEY_CURRENT_USER\\Software\\DownloadManager\\Settings',
+  '    ConnNumber    REG_DWORD    0x10',
+  '    SomePath    REG_SZ    C:\\Users\\X'
+].join('\r\n');
+const vals = idm.parseRegQuery(queryOut);
+ok(vals.length === 3, 'v1.3: reg query parser finds 3 values (got ' + vals.length + ')');
+const binVal = vals.find(v => v.type === 'REG_BINARY');
+ok(!!binVal && binVal.data.replace(/\s+/g, '').length === hexStr.length, 'v1.3: wrapped REG_BINARY hex reassembled');
+const col = idm.makeCollector();
+const stats = idm.entriesFromRegQuery(queryOut, col);
+ok(stats.blobs === 1, 'v1.3: one binary blob processed (got ' + stats.blobs + ')');
+ok(col.entries.length === 1 && col.entries[0].url.includes('Movie'), 'v1.3: main-list entry extracted from registry dump');
+ok(col.entries[0].filename === 'Movie.2023.1080p.BluRay.mkv', 'v1.3: filename pulled from record path (got ' + col.entries[0].filename + ')');
+ok(col.entries[0].referrer === 'https://movies-site.example.com/download/123', 'v1.3: referrer from second url in blob');
+
+/* ---- v1.3: registry + files merge dedupes across sources ---- */
+const col2 = idm.makeCollector();
+idm.entriesFromRegQuery(queryOut, col2);
+for (const en of idm.parseHistoryText(fs.readFileSync('/tmp/raad-UrlHistory.txt'))) col2.add(en.url, '', en.filename);
+ok(col2.entries.filter(e => e.url.includes('Movie')).length === 1, 'v1.3: same download in registry AND UrlHistory imports once (got ' + col2.entries.filter(e => e.url.includes('Movie')).length + ')');
+
 console.log('\nDone. exitCode =', process.exitCode || 0);

@@ -3,12 +3,18 @@
 window.Views = {};
 const state = {
   filter: 'all', search: '',
-  rows: new Map(),        // id -> {root, pct, pbar, meta, chip, act}
+  rows: new Map(),        // id -> mounted row elements {root, pct, pbar, meta, chip, act, top}
+  rowsData: [],           // full filtered dataset (windowed rendering source)
   speeds: new Map(),      // id -> speed (for status bar total)
   settings: {}, info: {}
 };
 
-/* ═══════════════════ DOWNLOADS ═══════════════════ */
+/* ═══════════════════ DOWNLOADS ═══════════════════
+ * v1.3 list = fixed-height rows rendered through a WINDOW: only the visible
+ * slice (+overscan) exists in the DOM. With 1000+ IDM imports the app stays
+ * light on the GPU and rows physically cannot overlap or reflow. */
+Views.rowHeight = () => (document.documentElement.dataset.density === 'compact' ? 56 : 64);
+
 Views.renderDownloads = async function (root) {
   root.innerHTML = '';
   const toolbar = h('div', { class: 'dl-toolbar' },
@@ -25,13 +31,25 @@ Views.renderDownloads = async function (root) {
     ),
     filterBar = h('div', { class: 'filters' })
   );
-  root.append(toolbar, listEl = h('div', { class: 'dl-list' }));
+  listEl = h('div', { class: 'dl-list' });
+  vlistEl = h('div', { class: 'dl-vlist' });
+  listEl.append(vlistEl);
+  listEl.addEventListener('scroll', () => {
+    if (scrollPending) return;
+    scrollPending = true;
+    requestAnimationFrame(() => { scrollPending = false; Views.renderWindow(); });
+  }, { passive: true });
+  root.append(toolbar, listEl);
   state.searchInput = searchInput;
+  if (!resizeWired) {
+    resizeWired = true;
+    window.addEventListener('resize', () => Views.renderWindow && Views.renderWindow());
+  }
   await Views.refreshFilters();
   Views.refreshList(true);
 };
 
-let listEl = null, filterBar = null, searchInput = null;
+let listEl = null, filterBar = null, searchInput = null, vlistEl = null, scrollPending = false, resizeWired = false;
 
 /* progress events are coalesced into one DOM flush every 250ms — keeps the UI
  * smooth and light on the GPU even with dozens of simultaneous downloads */
@@ -44,6 +62,10 @@ Views.noteProgress = function (e) {
 function flushProgress() {
   flushT = null;
   for (const [id, ev] of dirty) {
+    /* keep the underlying dataset fresh even for rows currently outside the window */
+    const rec0 = state.rowsData.find(r => r.id === id);
+    if (rec0) { rec0.received = ev.received; rec0.size = ev.size; rec0.speed = ev.speed; rec0.eta = ev.eta; }
+    state.speeds.set(id, ev.speed || 0);
     const entry = state.rows.get(id);
     if (!entry) continue;
     const r = entry.rec;
@@ -51,7 +73,6 @@ function flushProgress() {
     entry.pct.textContent = pctText(r);
     entry.pbar.style.width = pctW(r);
     renderMeta(entry, r);
-    state.speeds.set(id, ev.speed || 0);
   }
   dirty.clear();
   updateStatusTotals();
@@ -85,28 +106,54 @@ Views.refreshFilters = async function () {
   $('#stActive').textContent = (counts.active ? counts.active + ' × ' + t('stDownloading') : t('stReady'));
 };
 
-Views.refreshList = async function (rebuild = false) {
+Views.refreshList = async function () {
   const rows = await window.raad.dl.list({ filter: state.filter, search: state.search });
-  if (rebuild) {
+  state.rowsData = rows;
+  const ids = new Set(rows.map(r => r.id));
+  for (const id of [...state.rows.keys()]) if (!ids.has(id)) state.rows.delete(id);
+  const empty = listEl.querySelector(':scope > .empty');
+  if (!rows.length) {
     state.rows.clear(); state.speeds.clear();
-    listEl.innerHTML = '';
-    if (!rows.length) {
-      listEl.append(h('div', { class: 'empty' },
-        h('div', { class: 'e-ic', html: '<svg viewBox="0 0 24 24" width="38" height="38"><path fill="currentColor" d="M13 2 4.5 13.5h5.2L8.6 22l8.9-11.5h-5.3L13 2z"/></svg>' }),
-        h('h4', { text: t('emptyTitle') }),
-        h('p', { text: t('emptyText') })
-      ));
-      updateStatusTotals();
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    rows.forEach(r => frag.append(buildRow(r)));
-    listEl.append(frag);
-  } else {
-    // remove rows no longer in list
-    for (const [id, el] of state.rows) if (!rows.find(r => r.id === id)) { el.root.remove(); state.rows.delete(id); }
+    vlistEl.style.height = '0px';
+    vlistEl.innerHTML = '';
+    if (!empty) listEl.append(h('div', { class: 'empty' },
+      h('div', { class: 'e-ic', html: '<svg viewBox="0 0 24 24" width="38" height="38"><path fill="currentColor" d="M13 2 4.5 13.5h5.2L8.6 22l8.9-11.5h-5.3L13 2z"/></svg>' }),
+      h('h4', { text: t('emptyTitle') }),
+      h('p', { text: t('emptyText') })
+    ));
+    updateStatusTotals();
+    return;
   }
+  if (empty) empty.remove();
+  vlistEl.style.height = (rows.length * Views.rowHeight()) + 'px';
+  Views.renderWindow();
   updateStatusTotals();
+};
+
+/* mount/unmount only the rows intersecting the viewport (+6 overscan) */
+Views.renderWindow = function () {
+  if (!listEl || !vlistEl) return;
+  const rows = state.rowsData;
+  if (!rows.length) return;
+  const RH = Views.rowHeight();
+  const top = listEl.scrollTop;
+  const vh = listEl.clientHeight || 620;
+  const start = Math.max(0, Math.floor(top / RH) - 6);
+  const end = Math.min(rows.length, Math.ceil((top + vh) / RH) + 6);
+  const want = new Set();
+  for (let i = start; i < end; i++) want.add(rows[i].id);
+  for (const [id, en] of [...state.rows]) {
+    if (!want.has(id)) { en.root.remove(); state.rows.delete(id); state.speeds.delete(id); }
+  }
+  const detached = [];
+  for (let i = start; i < end; i++) {
+    const r = rows[i];
+    let en = state.rows.get(r.id);
+    if (!en || !en.root) en = buildRow(r);   // buildRow registers the entry itself
+    if (en.top !== i) { en.root.style.top = (i * RH) + 'px'; en.top = i; }
+    if (!en.root.isConnected) detached.push(en.root);
+  }
+  if (detached.length) vlistEl.append(...detached);
 };
 
 function updateStatusTotals() {
@@ -118,6 +165,9 @@ function updateStatusTotals() {
 }
 
 function chipFor(r) {
+  /* PARKED = IDM history import (or queued-only item): waiting for the user,
+   * never auto-started — visually distinct from a user-paused download */
+  if (r.status === 'paused' && r.parked) return h('span', { class: 'chip', text: t('parked') });
   const map = { queued: '', downloading: 'acc', paused: 'warn', completed: 'ok', failed: 'err' };
   return h('span', { class: 'chip ' + (map[r.status] || ''), text: t(r.status) });
 }
@@ -130,24 +180,23 @@ function buildRow(r) {
   const pbar = h('div', { class: 'pbar dl-pbar' }, h('i', { style: { width: pctW(r) } }));
   const meta = h('div', { class: 'dl-meta' });
   const act = h('div', { class: 'dl-act' });
-  const root = h('div', { class: 'dl-row' },
+  const root = h('div', { class: 'dl-row', style: { top: '0px' } },
     fileIcon(r.filename),
     h('div', { class: 'dl-mid' },
       h('div', { class: 'dl-line1' }, name, chip),
-      urlEl,
-      h('div', { class: 'dl-prog' }, pbar, pct),
-      meta
+      h('div', { class: 'dl-line2' }, urlEl, meta),
+      h('div', { class: 'dl-line3' }, pbar, pct)
     ),
     act
   );
-  const entry = { root, chip, pct, pbar: pbar.firstChild, meta, act, rec: r };
+  const entry = { root, chip, pct, pbar: pbar.firstChild, meta, act, rec: r, top: 0 };
   state.rows.set(r.id, entry);
   state.speeds.set(r.id, r.status === 'downloading' ? (r.speed || 0) : 0);
   renderMeta(entry, r);
   renderAct(entry, r);
   root.addEventListener('contextmenu', (e) => { e.preventDefault(); rowMenu(e, r); });
   root.addEventListener('dblclick', () => window.raad.dl.open(r.id));
-  return root;
+  return entry;   // NOTE: the ENTRY (buildRow also registers it in state.rows)
 }
 
 function pctText(r) {
@@ -188,9 +237,9 @@ function renderAct(entry, r) {
   act.innerHTML = '';
   const btn = (icon, tip, fn, cls = '') => h('button', { class: 'icon-btn ' + cls, title: tip, html: icon, onclick: fn });
   if (r.status === 'downloading' || r.status === 'queued')
-    act.append(btn(ic.pause, t('paused'), () => window.raad.dl.control(r.id, 'pause')));
+    act.append(btn(ic.pause, t('actPause'), () => window.raad.dl.control(r.id, 'pause')));
   else if (r.status === 'paused' || r.status === 'failed')
-    act.append(btn(ic.play, t('fActive'), () => window.raad.dl.control(r.id, 'resume')));
+    act.append(btn(ic.play, t('actStart'), () => window.raad.dl.control(r.id, 'resume')));
   if (r.status === 'completed')
     act.append(btn(ic.open, t('ctxOpen'), () => window.raad.dl.open(r.id)));
   act.append(btn(ic.folder, t('ctxFolder'), () => window.raad.dl.showInFolder(r.id)));

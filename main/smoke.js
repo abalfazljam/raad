@@ -58,6 +58,36 @@ module.exports = async function run(ctx) {
     await sleep(700);
     await shot('view-downloads-populated');
 
+    /* v1.3: 1000-row windowed list — DOM must stay tiny, scroll must re-render */
+    log('bulk 1000 rows (windowed list)', '');
+    await js(win, `
+      const items = [];
+      for (let i = 0; i < 1000; i++) items.push({ url: 'https://cdn.example.com/bulk/file-' + i + '.zip', filename: 'bulk-file-' + i + '.zip' });
+      window.raad.dl.add({ items, start: false });
+    `);
+    await sleep(2200);
+    await js(win, `window.nav('downloads')`);
+    await sleep(900);
+    const domRows = await js(win, `document.querySelectorAll('.dl-row').length`);
+    log('DOM rows mounted for 1002 items (must be ~visible only)', domRows);
+    await shot('view-downloads-1000-rows');
+    await js(win, `const l = document.querySelector('.dl-list'); l.scrollTop = 32000;`);
+    await sleep(800);
+    const midInfo = await js(win, `({rows: document.querySelectorAll('.dl-row').length, scrollTop: Math.round(document.querySelector('.dl-list').scrollTop)})`);
+    log('after deep scroll', JSON.stringify(midInfo));
+    await shot('view-downloads-scrolled-mid');
+
+    /* v1.3 regression: resume-all must NOT mass-start PARKED (imported) items */
+    await js(win, `window.raad.dl.resumeAll()`);
+    await sleep(900);
+    const counts = await js(win, `window.raad.dl.counts()`);
+    log('counts after resumeAll — parked must stay paused (>=1000), active must stay tiny', JSON.stringify(counts));
+    if (counts.paused < 1000) results.errors.push('PARKED LEAK: resumeAll started parked items (paused=' + counts.paused + ')');
+    await js(win, `window.nav('settings')`);
+    await sleep(600);
+    const hasAuto = await js(win, `!!document.querySelector('.seg button') && [...document.querySelectorAll('.seg')].some(s => [...s.querySelectorAll('button')].some(b => /هماهنگ|Follow system/.test(b.textContent)))`);
+    log('auto/system theme mode present (must be false)', hasAuto);
+
     // light mode + violet accent
     await js(win, `window.raad.settings.set({mode:'light', accent:'violet'})`);
     await sleep(900);
