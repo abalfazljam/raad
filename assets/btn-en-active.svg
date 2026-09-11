@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="112" height="34" role="img" aria-label="English">
+  <title>English — current language</title>
+  <rect x="0.75" y="0.75" width="110.5" height="32.5" rx="8" fill="#6366f1" stroke="#818cf8" stroke-width="1.5"/>
+  <circle cx="94" cy="17" r="3.2" fill="#ffffff" opacity="0.95"/>
+  <text x="54" y="22.5" text-anchor="middle" font-family="Vazirmatn, Tahoma, 'Segoe UI', sans-serif" font-size="15" font-weight="700" fill="#ffffff">English</text>
+</svg>

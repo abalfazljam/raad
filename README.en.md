@@ -1,7 +1,6 @@
 <div align="center">
 
-[![فارسی](https://img.shields.io/badge/%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-%E2%86%92-374151?style=for-the-badge)](README.md)
-[![English](https://img.shields.io/badge/English-%E2%97%8F-6366f1?style=for-the-badge)](README.en.md)
+[![فارسی](assets/btn-fa-inactive.svg)](README.md)&nbsp;[![English](assets/btn-en-active.svg)](README.en.md)
 
 </div>
 
