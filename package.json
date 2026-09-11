@@ -1,7 +1,7 @@
 {
   "name": "raad-dm",
   "productName": "Raad Download Manager",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Raad (Thunder) — a modern IDM-alternative download manager: multi-segment engine, pause/resume, scheduler, clipboard batch import, IDM migration and Chrome/Firefox extensions",
   "main": "main/main.js",
   "author": "Raad Team",

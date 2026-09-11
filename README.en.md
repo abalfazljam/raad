@@ -33,7 +33,7 @@
 - ⏰ **Scheduler** — daily/weekly time windows + optional auto shutdown after the queue drains
 - 📋 **Clipboard monitor** — automatic detection of one or many copied links + batch add with checkboxes
 - 🌐 **Chrome & Firefox extensions** — clicking a download link opens Raad's floating window (the IDM experience); toggle interception with one click (OFF badge on the icon)
-- 🔄 **IDM migration** — reads “the entire list you see inside IDM” from the **Windows registry** + every `UrlHistory*` file (merged & deduped, up to 20,000 entries). Deleted files do not matter — everything comes over; items land as **“Ready” and nothing downloads automatically** — you start each one yourself
+- 🔄 **IDM migration** — reads “the entire list you see inside IDM” directly from the **Windows registry** (`DownloadManager\<n>` record subkeys with their `Url0` value — the same source IDM backup tools rely on) + every `UrlHistory*` file (merged & deduped, up to 20,000 entries). Deleted files do not matter — everything comes over; items land as **“Ready” and nothing downloads automatically** — you start each one yourself
 - 🎨 **Fully customizable appearance** — dark/light × 3 styles (glass, flat, soft) × 6 preset accents + **custom accent color** + corner radius + text size + static background glow + compact mode
 - 🌍 **Bilingual** — Persian/English with automatic RTL/LTR; Vazirmatn font bundled
 
@@ -70,11 +70,11 @@ Then in Raad: **Settings ← Browser extension ← Copy JSON**, and Paste + Save
 
 ## 🔄 Transfer history & settings from IDM
 
-IDM's main list (what you see in its window) lives in the **Windows registry**, and `UrlHistory.txt` mirrors recent activity. Raad's “Automatic transfer” reads **both sources** and merges them — deleted files do not matter, everything comes over, and nothing downloads until you start it:
+IDM's main list (what you see in its window) lives in the **Windows registry**: every download is a numeric subkey (`HKEY_CURRENT_USER\Software\DownloadManager\<n>`) whose `Url0` value holds the URL — the same source IDM backup/restore tools use, which is why thousands of records survive a Windows reinstall. `UrlHistory.txt` only mirrors recent activity. Raad's “Automatic transfer” reads **both sources** and merges them — deleted files do not matter, everything comes over, and nothing downloads until you start it:
 
 | Method | Description |
 |---|---|
-| **Automatic** (same Windows PC) | In Raad: “IDM migration ← Automatic transfer” — the whole list from the registry (`HKEY_CURRENT_USER\Software\DownloadManager`) + every `UrlHistory*` file in `%APPDATA%\IDM`. IDM must be closed. |
+| **Automatic** (same Windows PC) | In Raad: “IDM migration ← Automatic transfer” — the whole `HKEY_CURRENT_USER\Software\DownloadManager` tree (all record subkeys with `Url0`) via a Unicode-safe `reg export` + every `UrlHistory*` file in `%APPDATA%\IDM`. IDM must be closed. |
 | **History file** | From the old PC: export `HKEY_CURRENT_USER\Software\DownloadManager` in regedit, or copy `%APPDATA%\IDM\UrlHistory.txt` ← in Raad: “History file / IDM export” |
 | **Link list** | In IDM itself: `Tasks → Export` menu (text output), or any text file containing links |
 

@@ -1,13 +1,28 @@
 'use strict';
-/* Raad DM — IDM migration v2.
+/* Raad DM — IDM migration v3.
  *
- * FACTS about IDM storage (verified from official IDM docs/FAQ):
- *   • Download history  →  %APPDATA%\IDM\UrlHistory.txt   (NOT the registry!)
- *   • Settings          →  HKEY_CURRENT_USER\Software\DownloadManager
- *   • List transfer     →  IDM "Tasks → Export" produces a plain-text URL list
+ * FACTS about IDM storage (verified: forensics papers + the tooling
+ * ecosystem around IDM, incl. how history cleaners and IDM Backup
+ * Manager restore a FULL list across Windows reinstalls):
+ *
+ *   • The MAIN download list (what IDM's window shows) lives in the
+ *     registry: HKEY_CURRENT_USER\Software\DownloadManager contains one
+ *     NUMERIC SUBKEY per download ("85", "847", …), each holding the
+ *     record as string values — the URL in "Url0" (REG_SZ), plus
+ *     filename / referrer strings. This is why a registry restore
+ *     brings back THOUSANDS of downloads even when the files are gone.
+ *   • Legacy/older records may also appear as REG_BINARY blobs under the
+ *     same tree → scanned as a fallback.
+ *   • %APPDATA%\IDM\UrlHistory*.txt only mirrors recent activity.
+ *   • Settings      →  HKEY_CURRENT_USER\Software\DownloadManager
+ *   • List transfer →  IDM "Tasks → Export" produces a plain-text URL list
  *
  * Modes:
- *   auto — (Windows) read UrlHistory.txt + `reg query` for settings
+ *   auto — (Windows) `reg export` the whole DownloadManager tree
+ *          (UTF-16LE file — no console codepage mangling of Persian
+ *          names), extract every subkey record + every binary blob,
+ *          then merge every UrlHistory* file. `reg query /s` stays as
+ *          fallback when export is unavailable.
  *   file — UrlHistory.txt / IDM text export / any URL list / .reg file
  */
 const fs = require('fs');
@@ -143,6 +158,8 @@ function decodeIdmStrings(buf) {
 const FILENAME_RE = new RegExp('\\.(' + Object.values(U.EXT_CATS).flat().concat(['bin', 'dat', 'part']).join('|') + ')$', 'i');
 
 /* ---------- shared URL collector (dedupe + cap) ---------- */
+const URLISH_RE = /^(?:(?:https?|ftp):\/\/|www\.)/i;
+
 function makeCollector(cap = MAX_ENTRIES) {
   const seen = new Set();
   const entries = [];
@@ -176,15 +193,63 @@ function entryFromBlob(strings, add) {
 }
 
 /* .reg file binary values → entries (legacy path, kept for old exports) */
-function extractEntries(values, collector) {
-  const col = collector || makeCollector();
+function blobsFromValues(values, col) {
+  let blobs = 0;
   for (const v of values) {
-    if (v.type !== 'binary' || !Buffer.isBuffer(v.data) || v.data.length < 8) continue;
-    const strings = decodeIdmStrings(v.data).sort((a, b) => a.pos - b.pos);
+    if (!/binary/i.test(v.type) || !v.data) continue;
+    let buf;
+    try { buf = Buffer.isBuffer(v.data) ? v.data : Buffer.from(String(v.data).replace(/\s+/g, ''), 'hex'); } catch { continue; }
+    if (buf.length < 12) continue;
+    blobs++;
+    const strings = decodeIdmStrings(buf).sort((a, b) => a.pos - b.pos);
     entryFromBlob(strings, (u, r, f) => col.add(u, r, f));
     if (col.full()) break;
   }
+  return blobs;
+}
+
+function extractEntries(values, collector) {
+  const col = collector || makeCollector();
+  blobsFromValues(values, col);
   return col.entries;
+}
+
+/* ---------- THE REAL HISTORY: record subkeys with Url0 values ----------
+ * HKEY_CURRENT_USER\Software\DownloadManager\85
+ *     Url0        REG_SZ    https://site/file.zip
+ *     Filename0   REG_SZ    C:\Users\...\file.zip      (names vary)
+ *     Referer0    REG_SZ    https://site/page          (names vary)
+ * One entry per subkey. Field names other than Url* differ between IDM
+ * versions, so filename/referrer are detected by name sniffing + a
+ * file-extension test, and everything dedupes through the collector. */
+const REG_STRING_TYPE_RE = /^(REG_(SZ|EXPAND_SZ|MULTI_SZ)|sz|expand_sz|multi_sz)$/i;
+
+function entriesFromRecords(values, col) {
+  const colRef = col || makeCollector();
+  const groups = new Map();
+  for (const v of values) {
+    if (!REG_STRING_TYPE_RE.test(String(v.type)) || typeof v.data !== 'string') continue;
+    const k = String(v.key || '');
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(v);
+  }
+  let records = 0;
+  for (const [, vals] of groups) {
+    if (colRef.full()) break;
+    const urls = vals.filter(v => URLISH_RE.test(v.data.trim()) && v.data.length < 2000 && !IDM_OWN_RE.test(v.data.trim()));
+    if (!urls.length) continue;
+    urls.sort((a, b) => (/^url/i.test(a.name) ? 0 : 1) - (/^url/i.test(b.name) ? 0 : 1));
+    const url = urls[0].data.trim();
+    const ref = urls.find(v => /refer|^ref/i.test(v.name) && v.data.trim() !== url);
+    const fnames = vals
+      .filter(v => !URLISH_RE.test(v.data.trim()) && (/(file|fname|name|title)/i.test(v.name) || FILENAME_RE.test(v.data.trim())))
+      .map(v => v.data.trim());
+    const filename = fnames.length
+      ? fnames.sort((a, b) => b.length - a.length)[0].split(/[\\/]/).pop()
+      : (U.filenameFromUrl(url) || '');
+    if (colRef.add(url, ref ? ref.data.trim() : '', U.sanitizeFilename(filename, ''))) records++;
+  }
+  return records;
 }
 
 /* ---------- settings guesses (strict) ---------- */
@@ -289,8 +354,23 @@ function queryRegTree() {
   });
 }
 
-/* `reg query /s` output parser:
- *   HKEY_CURRENT_USER\...\Key
+/* Full-tree EXPORT (UTF-16LE .reg file) — the reliable primary path:
+ * perfect Unicode fidelity (Persian filenames survive), and unlike
+ * console output, nothing is truncated. Returns the file bytes or null. */
+function exportRegTree() {
+  return new Promise((resolve) => {
+    const file = path.join(os.tmpdir(), 'raad-idm-export.reg');
+    execFile('reg', ['export', 'HKCU\\Software\\DownloadManager', file, '/y'],
+      { timeout: 90000, maxBuffer: 4 * 1024 * 1024 }, (err) => {
+        if (err) return resolve(null);
+        try { resolve(fs.readFileSync(file)); } catch { resolve(null); }
+      });
+  });
+}
+
+/* `reg query /s` output parser (FALLBACK path when reg export fails):
+ *   HKEY_CURRENT_USER\...\Key          ← current key tracked per value
+ *       ValueName    REG_SZ    https://...   (record subkeys, v1.4+)
  *       ValueName    REG_BINARY    5C004400...   (long hex wraps onto
  *                                                    20-space indented lines)
  *       ValueName    REG_DWORD    0x20
@@ -298,10 +378,11 @@ function queryRegTree() {
 function parseRegQuery(text) {
   const values = [];
   let cur = null;
+  let keyPath = '';
   for (const rawLine of String(text).split(/\r?\n/)) {
-    if (/^HKEY_/i.test(rawLine)) { cur = null; continue; }
+    if (/^HKEY_/i.test(rawLine)) { keyPath = rawLine.trim(); cur = null; continue; }
     const m = /^ {4}(.+?)\s{2,}(REG_[A-Z_]+)\s+(.*)$/.exec(rawLine);
-    if (m) { cur = { name: m[1], type: m[2], data: m[3].trim() }; values.push(cur); continue; }
+    if (m) { cur = { key: keyPath, name: m[1], type: m[2], data: m[3].trim() }; values.push(cur); continue; }
     if (cur && cur.type === 'REG_BINARY' && /^ {6,}\S/.test(rawLine)) {
       const hexish = rawLine.trim();
       if (/^[0-9A-Fa-f]+( [0-9A-Fa-f]+)*$/.test(hexish)) cur.data += ' ' + hexish;
@@ -312,18 +393,9 @@ function parseRegQuery(text) {
 
 function entriesFromRegQuery(text, col) {
   const values = parseRegQuery(text);
-  let blobs = 0;
-  for (const v of values) {
-    if (v.type !== 'REG_BINARY' || !v.data) continue;
-    let buf;
-    try { buf = Buffer.from(v.data.replace(/\s+/g, ''), 'hex'); } catch { continue; }
-    if (buf.length < 12) continue;
-    blobs++;
-    const strings = decodeIdmStrings(buf).sort((a, b) => a.pos - b.pos);
-    entryFromBlob(strings, (u, r, f) => col.add(u, r, f));
-    if (col.full()) break;
-  }
-  return { values: values.length, blobs };
+  const records = entriesFromRecords(values, col);
+  const blobs = blobsFromValues(values, col);
+  return { values: values.length, blobs, records };
 }
 
 function importAuto() {
@@ -335,18 +407,30 @@ function importAuto() {
       const col = makeCollector();
       const srcs = [];
 
-      /* 1) registry — the MAIN list (usually the big one) */
-      const regText = await queryRegTree();
-      if (regText) {
-        const { values, blobs } = entriesFromRegQuery(regText, col);
-        srcs.push('registry: ' + blobs + '/' + values + ' records → ' + col.entries.length);
+      /* 1) registry — the MAIN list (usually the big one).
+       * Records are NUMERIC SUBKEYS holding the URL in "Url0" (REG_SZ);
+       * legacy REG_BINARY blobs are scanned too. Primary path is a full
+       * `reg export` (Unicode-safe file), `reg query /s` as fallback. */
+      const exported = await exportRegTree();
+      if (exported) {
+        const dmValues = parseRegFile(exported).filter(v => /downloadmanager/i.test(v.key));
+        const recs = entriesFromRecords(dmValues, col);
+        const before = col.entries.length;
+        blobsFromValues(dmValues, col);
+        srcs.push('registry(subkeys): ' + recs + ' +blobs: ' + (col.entries.length - before));
       } else {
-        srcs.push('registry: not readable');
+        const regText = await queryRegTree();
+        if (regText) {
+          const stats = entriesFromRegQuery(regText, col);
+          srcs.push('registry-query(subkeys): ' + stats.records + ' +blobs: ' + stats.blobs);
+        } else {
+          srcs.push('registry: not readable');
+        }
       }
+      const afterReg = col.entries.length;
 
       /* 2) every UrlHistory* text file (recent history mirror) */
       const files = [];
-      const afterReg = col.entries.length;
       for (const f of idmHistoryFiles()) {
         try {
           const parsed = parseHistoryText(fs.readFileSync(f));
@@ -387,8 +471,9 @@ function importFromFile(filePath) {
     const dmValues = values.filter(v => /downloadmanager/i.test(v.key));
     const pool = dmValues.length ? dmValues : values;
     const col = makeCollector();
-    extractEntries(pool, col);
-    return { mode: 'reg', entries: col.entries, settings: guessSettings(pool), totalValues: values.length };
+    const records = entriesFromRecords(pool, col);
+    blobsFromValues(pool, col);
+    return { mode: 'reg', entries: col.entries, settings: guessSettings(pool), totalValues: values.length, records };
   }
   return { mode: 'list', entries: parseHistoryText(buf), settings: [], totalValues: 0 };
 }
@@ -396,6 +481,6 @@ function importFromFile(filePath) {
 module.exports = {
   parseRegFile, decodeIdmStrings, extractEntries, guessSettings,
   parseHistoryText, extractFromListFile: parseHistoryText,
-  parseRegQuery, entriesFromRegQuery, makeCollector,
+  parseRegQuery, entriesFromRegQuery, entriesFromRecords, blobsFromValues, makeCollector,
   importFromFile, importAuto, idmHistoryPaths, idmHistoryFiles, idmHistoryDir
 };

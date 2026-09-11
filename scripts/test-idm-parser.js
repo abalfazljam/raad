@@ -195,4 +195,69 @@ idm.entriesFromRegQuery(queryOut, col2);
 for (const en of idm.parseHistoryText(fs.readFileSync('/tmp/raad-UrlHistory.txt'))) col2.add(en.url, '', en.filename);
 ok(col2.entries.filter(e => e.url.includes('Movie')).length === 1, 'v1.3: same download in registry AND UrlHistory imports once (got ' + col2.entries.filter(e => e.url.includes('Movie')).length + ')');
 
+/* ---- v1.4: THE REAL MAIN LIST — numeric subkeys with Url0 REG_SZ values ----
+ * This is the storage IDM Backup Manager / history cleaners operate on
+ * (HKCU\Software\DownloadManager\<number>\Url0). Simulates a user with a
+ * 1200-entry history, Persian filenames included. */
+const recLines = [];
+for (let i = 1; i <= 1198; i++) {
+  recLines.push(
+    '[HKEY_CURRENT_USER\\Software\\DownloadManager\\' + (100 + i) + ']',
+    '"Url0"="https://mirror-' + (i % 7) + '.example.com/dl/' + (i % 7) + '/file-' + i + '.zip"',
+    '"Referer0"="https://site-' + (i % 7) + '.example.com/page/' + i + '"',
+    '"Filename0"="C:\\\\Users\\\\TestUser\\\\Downloads\\\\file-' + i + '.zip"',
+    ''
+  );
+}
+/* two subkeys sharing one URL → dedupes to a single entry */
+recLines.push(
+  '[HKEY_CURRENT_USER\\Software\\DownloadManager\\9001]',
+  '"Url0"="https://dup.example.com/same.zip"',
+  '',
+  '[HKEY_CURRENT_USER\\Software\\DownloadManager\\9002]',
+  '"Url0"="https://dup.example.com/same.zip"',
+  '',
+  '[HKEY_CURRENT_USER\\Software\\DownloadManager\\9003]',
+  '"Url0"="https://persian.example.com/files/video-amuzeshi.mp4"',
+  '"Filename0"="C:\\\\Users\\\\TestUser\\\\Downloads\\\\video-amuzeshi.mp4"',
+  ''
+);
+const reg14 = ['Windows Registry Editor Version 5.00', '',
+  '[HKEY_CURRENT_USER\\Software\\DownloadManager]',
+  '"ConnNumber"=dword:00000010', ''
+].concat(recLines).join('\r\n');
+fs.writeFileSync('/tmp/raad-test-v14.reg', Buffer.from('\ufeff' + reg14, 'utf16le'));
+const r14 = idm.importFromFile('/tmp/raad-test-v14.reg');
+ok(r14.entries.length === 1200, 'v1.4: all 1200 subkey records imported (1198 unique + 1 deduped pair + 1 Persian; got ' + r14.entries.length + ')');
+const m14 = r14.entries.find(e => e.url.endsWith('file-42.zip'));
+ok(!!m14, 'v1.4: record 42 present');
+ok(m14 && m14.filename === 'file-42.zip', 'v1.4: filename from Filename0 (got ' + (m14 && m14.filename) + ')');
+ok(m14 && m14.referrer === 'https://site-0.example.com/page/42', 'v1.4: referrer from Referer0 (got ' + (m14 && m14.referrer) + ')');
+const mp = r14.entries.find(e => e.url.includes('video-amuzeshi'));
+ok(mp && mp.filename === 'video-amuzeshi.mp4', 'v1.4: Persian filename survives UTF-16LE export (got ' + (mp && mp.filename) + ')');
+ok(r14.entries.filter(e => e.url === 'https://dup.example.com/same.zip').length === 1, 'v1.4: duplicate URL in two subkeys imported once');
+
+/* ---- v1.4: `reg query /s` fallback now picks up Url0 REG_SZ records too ---- */
+const query14 = [
+  'HKEY_CURRENT_USER\\Software\\DownloadManager',
+  '',
+  '',
+  'HKEY_CURRENT_USER\\Software\\DownloadManager\\85',
+  '    Url0    REG_SZ    https://subkey.example.com/a/clip.mkv',
+  '    Referer0    REG_SZ    https://subkey.example.com/watch/9',
+  '',
+  'HKEY_CURRENT_USER\\Software\\DownloadManager\\86',
+  '    Url0    REG_SZ    https://subkey.example.com/a/ep2.mkv',
+  '',
+  'HKEY_CURRENT_USER\\Software\\DownloadManager\\Settings',
+  '    ConnNumber    REG_DWORD    0x10'
+].join('\r\n');
+const v14q = idm.parseRegQuery(query14);
+ok(v14q.find(v => v.name === 'Url0' && v.data.includes('clip')).key.endsWith('\\85'), 'v1.4: query parser tracks record subkey path');
+const col14 = idm.makeCollector();
+const st14 = idm.entriesFromRegQuery(query14, col14);
+ok(st14.records === 2, 'v1.4: 2 Url0 records from query output (got ' + st14.records + ')');
+ok(col14.entries.length === 2 && col14.entries[0].url.includes('clip.mkv'), 'v1.4: records extracted via query fallback');
+ok(col14.entries[0].referrer === 'https://subkey.example.com/watch/9', 'v1.4: referrer via query fallback');
+
 console.log('\nDone. exitCode =', process.exitCode || 0);
