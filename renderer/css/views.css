@@ -20,15 +20,16 @@
 }
 .ftab .n { opacity: .8; font-size: 10.5px; }
 
-/* ---------- download list ---------- */
+/* ---------- download list (v1.2 redesign: robust grid rows) ---------- */
 .dl-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 9px; padding-bottom: 14px; padding-inline-end: 4px; }
 .dl-row {
-  display: flex; align-items: center; gap: 13px; padding: 12px 14px;
-  border-radius: 14px; border: 1px solid var(--border); background: var(--panel);
-  transition: border-color .2s, transform .15s, background .2s; position: relative; overflow: hidden;
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 13px; align-items: center;
+  padding: 11px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--panel);
+  position: relative; overflow: hidden; cursor: default;
+  transition: border-color .2s, background .2s;
 }
 [data-style="soft"] .dl-row { background: var(--panel-solid); border-color: transparent; box-shadow: 0 4px 18px rgba(16,24,40,.08); }
-.dl-row:hover { border-color: color-mix(in srgb, var(--acc) 40%, var(--border)); transform: translateY(-1.5px); }
+.dl-row:hover { border-color: color-mix(in srgb, var(--acc) 40%, var(--border)); background: color-mix(in srgb, var(--hover) 45%, var(--panel)); }
 .dl-row.flash { animation: rowFlash 1s ease; }
 @keyframes rowFlash { 0% { background: color-mix(in srgb, var(--acc) 22%, transparent); } }
 
@@ -45,15 +46,29 @@
 .f-ic.image { background: linear-gradient(135deg, #6366f1, #4338ca); }
 .f-ic.other { background: linear-gradient(135deg, #64748b, #334155); }
 
-.dl-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.dl-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: ltr; text-align: start; }
-[dir="rtl"] .dl-name { text-align: end; }
-.dl-meta { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--dim); flex-wrap: wrap; }
+.dl-mid { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dl-line1 { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.dl-name {
+  font-weight: 700; font-size: 13px; min-width: 0; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  direction: ltr; text-align: start;
+}
+.dl-line1 .chip { margin-inline-start: auto; flex: 0 0 auto; }
+.dl-url {
+  font-size: 10.8px; color: var(--faint); direction: ltr; text-align: start;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dl-prog { display: flex; align-items: center; gap: 9px; }
+.dl-prog .pbar { flex: 1; height: 6px; }
+.dl-pct {
+  flex: 0 0 44px; text-align: end; font-weight: 800; font-size: 11.5px;
+  color: var(--acc); font-variant-numeric: tabular-nums;
+}
+.dl-meta { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--dim); flex-wrap: wrap; min-width: 0; }
 .dl-meta .sep { opacity: .4; }
-.dl-pbar { width: 100%; }
-.dl-act { display: flex; gap: 2px; opacity: 0; transition: opacity .2s; }
-.dl-row:hover .dl-act, .dl-row.menu-open .dl-act { opacity: 1; }
-.dl-pct { flex: 0 0 44px; text-align: center; font-weight: 800; font-size: 12px; color: var(--acc); }
+.err-text { color: var(--chip-err); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
+.dl-act { display: flex; gap: 2px; opacity: .45; transition: opacity .2s; }
+.dl-row:hover .dl-act, .dl-row.menu-open .dl-act, .dl-act:focus-within { opacity: 1; }
 .speed-tag { color: var(--acc); font-weight: 700; }
 .eta-tag { color: var(--faint); }
 

@@ -17,13 +17,9 @@
 
 > **Portable, no installer.** Grab `RaadDM-Portable-x.x.x.exe` from [Releases](../../releases/latest), double-click, done. All data lives in a `Raad-Data` folder next to the exe.
 
-| Downloads list | Animated theme (Aurora) |
+| Downloads list | Appearance settings |
 |---|---|
-| ![downloads](screenshots/view-downloads-populated.png) | ![aurora](screenshots/theme-aurora.png) |
-
-| Appearance settings | Floating download window (IDM-style) |
-|---|---|
-| ![settings](screenshots/view-settings-appearance.png) | ![dialog](screenshots/dialog.png) |
+| ![downloads](screenshots/view-downloads-populated.png) | ![settings](screenshots/view-settings-appearance.png) |
 
 ---
 
@@ -37,21 +33,21 @@
 - ⏰ **Scheduler** — daily/weekly time windows + optional auto shutdown after the queue drains
 - 📋 **Clipboard monitor** — automatic detection of one or many copied links + batch add with checkboxes
 - 🌐 **Chrome & Firefox extensions** — clicking a download link opens Raad's floating window (the IDM experience); toggle interception with one click (OFF badge on the icon)
-- 🔄 **IDM migration** — history from IDM's own `UrlHistory.txt` file + settings from the registry
-- 🎨 **Fully customizable appearance** — dark/light/system × 3 styles (glass, flat, soft) × 6 preset accents + **custom accent color** + **5 animated background themes** (Aurora, Starfall, Waves, Particles, Color Mesh) + corner radius + text size + glow intensity + compact mode
+- 🔄 **IDM migration** — history from IDM's own `UrlHistory*` files (all of them merged, up to 20,000 entries) + settings from the registry; imported items land as **paused** and you start each one yourself
+- 🎨 **Fully customizable appearance** — dark/light/system × 3 styles (glass, flat, soft) × 6 preset accents + **custom accent color** + corner radius + text size + glow intensity + compact mode
 - 🌍 **Bilingual** — Persian/English with automatic RTL/LTR; Vazirmatn font bundled
 
-## 🖼 Animated themes
+## 🖼 Downloads list (redesigned)
 
-| Aurora | Starfall | Color Mesh |
-|---|---|---|
-| ![aurora](screenshots/theme-aurora.png) | ![stars](screenshots/theme-stars.png) | ![mesh](screenshots/theme-mesh.png) |
+| Downloads — dark | Light mode |
+|---|---|
+| ![downloads](screenshots/view-downloads-populated.png) | ![light](screenshots/view-downloads-light.png) |
 
-| Particles | Waves | Light mode |
-|---|---|---|
-| ![particles](screenshots/theme-particles.png) | ![waves](screenshots/theme-waves.png) | ![light](screenshots/view-downloads-light.png) |
+| Floating download window (IDM-style) | Clipboard batch import |
+|---|---|
+| ![dialog](screenshots/dialog.png) | ![clipboard](screenshots/modal-clipboard.png) |
 
-Text is always displayed on clear, solid panels — the animated themes only bring the background to life, so readability is preserved.
+Every row shows the file name + URL + progress bar + speed/ETA + action buttons (pause/resume, folder, delete) — double-click a row to open the file. “Start all / Pause all” buttons sit above the list.
 
 ## 📥 Install (no installer, no commands)
 

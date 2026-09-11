@@ -68,14 +68,7 @@ Views.renderSettings = async function (root) {
   };
   swatches.append(colorIn);
 
-  /* animated decoration theme */
-  const decoSeg = h('div', { class: 'seg wrap' });
-  for (const [val, key] of [['none', 'decoNone'], ['aurora', 'decoAurora'], ['stars', 'decoStars'], ['waves', 'decoWaves'], ['particles', 'decoParticles'], ['mesh', 'decoMesh']]) {
-    decoSeg.append(h('button', {
-      class: (s.deco || 'none') === val ? 'on' : '', text: t(key),
-      onclick: () => { window.raad.settings.set({ deco: val }); $$('.seg button', decoSeg).forEach(b => b.classList.remove('on')); }
-    }));
-  }
+  /* animated background themes were removed in v1.2 (dark/light + styles remain) */
   /* corner radius */
   const radiusSeg = h('div', { class: 'seg' });
   for (const [val, key] of [['sm', 'rSmall'], ['md', 'rMedium'], ['lg', 'rLarge']]) {
@@ -104,7 +97,6 @@ Views.renderSettings = async function (root) {
     setRow(t('themeMode'), '', modeSeg),
     setRow(t('styleTheme'), '', styleSeg),
     setRow(t('accent'), t('customAccentDesc'), swatches),
-    setRow(t('decoLabel'), t('decoDesc'), decoSeg),
     setRow(t('radiusLabel'), '', radiusSeg),
     setRow(t('fontLabel'), '', fontSeg),
     setRow(t('glowLabel'), '', glowSeg),

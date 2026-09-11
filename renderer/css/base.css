@@ -79,8 +79,8 @@ input, textarea, select, button { font: inherit; color: inherit; }
 .glow { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .32; }
 [data-mode="light"] .glow { opacity: .2; }
 [data-glow="off"] .glow { opacity: 0 !important; }
-[data-glow="vivid"] .glow, [data-glow="vivid"] .deco-blob { opacity: .5; }
-[data-glow="vivid"][data-mode="light"] .glow, [data-glow="vivid"][data-mode="light"] .deco-blob { opacity: .32; }
+[data-glow="vivid"] .glow { opacity: .5; }
+[data-glow="vivid"][data-mode="light"] .glow { opacity: .32; }
 .g1 { width: 480px; height: 480px; background: var(--acc); top: -160px; inset-inline-start: -120px; animation: float1 16s ease-in-out infinite; }
 .g2 { width: 380px; height: 380px; background: var(--acc-deep); bottom: -140px; inset-inline-end: -100px; animation: float2 20s ease-in-out infinite; }
 .g3 { width: 260px; height: 260px; background: var(--acc2); top: 40%; inset-inline-start: 55%; opacity: .16; animation: float1 24s ease-in-out infinite reverse; }

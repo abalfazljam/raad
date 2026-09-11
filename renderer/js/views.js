@@ -18,6 +18,8 @@ Views.renderDownloads = async function (root) {
         searchInput = h('input', { class: 'input', type: 'text', placeholder: t('phSearch'), oninput: (e) => { state.search = e.target.value; Views.refreshList(); } })
       ),
       h('div', { class: 'grow' }),
+      h('button', { class: 'btn', title: t('btnStartAll'), html: ic.play + '<span>' + t('btnStartAll') + '</span>', onclick: () => { window.raad.dl.resumeAll(); toast(t('ok'), t('btnStartAll')); } }),
+      h('button', { class: 'btn', title: t('btnPauseAll'), html: ic.pause + '<span>' + t('btnPauseAll') + '</span>', onclick: () => { window.raad.dl.pauseAll(); toast(t('ok'), t('btnPauseAll')); } }),
       h('button', { class: 'btn', id: 'btnPaste', onclick: Views.clipboardModal, html: ic.clip + '<span>' + t('btnPaste') + '</span>' }),
       h('button', { class: 'btn primary', onclick: Views.addModal, html: ic.plus + '<span>' + t('btnAdd') + '</span>' })
     ),
@@ -30,6 +32,30 @@ Views.renderDownloads = async function (root) {
 };
 
 let listEl = null, filterBar = null, searchInput = null;
+
+/* progress events are coalesced into one DOM flush every 250ms — keeps the UI
+ * smooth and light on the GPU even with dozens of simultaneous downloads */
+const dirty = new Map();
+let flushT = null;
+Views.noteProgress = function (e) {
+  dirty.set(e.id, e);
+  if (!flushT) flushT = setTimeout(flushProgress, 250);
+};
+function flushProgress() {
+  flushT = null;
+  for (const [id, ev] of dirty) {
+    const entry = state.rows.get(id);
+    if (!entry) continue;
+    const r = entry.rec;
+    r.received = ev.received; r.size = ev.size; r.speed = ev.speed; r.eta = ev.eta;
+    entry.pct.textContent = pctText(r);
+    entry.pbar.style.width = pctW(r);
+    renderMeta(entry, r);
+    state.speeds.set(id, ev.speed || 0);
+  }
+  dirty.clear();
+  updateStatusTotals();
+}
 
 const ic = {
   plus: '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z"/></svg>',
@@ -97,25 +123,30 @@ function chipFor(r) {
 }
 
 function buildRow(r) {
-  const pct = h('div', { class: 'dl-pct', text: pctText(r) });
+  const chip = chipFor(r);
+  const name = h('div', { class: 'dl-name', title: r.filename, text: r.filename });
+  const urlEl = h('div', { class: 'dl-url', title: r.url, text: r.url });
+  const pct = h('span', { class: 'dl-pct', text: pctText(r) });
   const pbar = h('div', { class: 'pbar dl-pbar' }, h('i', { style: { width: pctW(r) } }));
   const meta = h('div', { class: 'dl-meta' });
-  const chip = chipFor(r);
   const act = h('div', { class: 'dl-act' });
   const root = h('div', { class: 'dl-row' },
     fileIcon(r.filename),
     h('div', { class: 'dl-mid' },
-      h('div', { class: 'dl-name', title: r.url, text: r.filename }),
-      meta, pbar
+      h('div', { class: 'dl-line1' }, name, chip),
+      urlEl,
+      h('div', { class: 'dl-prog' }, pbar, pct),
+      meta
     ),
-    pct, act
+    act
   );
-  const entry = { root, pct, pbar: pbar.firstChild, meta, chip, act, rec: r };
+  const entry = { root, chip, pct, pbar: pbar.firstChild, meta, act, rec: r };
   state.rows.set(r.id, entry);
   state.speeds.set(r.id, r.status === 'downloading' ? (r.speed || 0) : 0);
   renderMeta(entry, r);
   renderAct(entry, r);
   root.addEventListener('contextmenu', (e) => { e.preventDefault(); rowMenu(e, r); });
+  root.addEventListener('dblclick', () => window.raad.dl.open(r.id));
   return root;
 }
 
@@ -131,18 +162,24 @@ function pctW(r) {
 }
 
 function renderMeta(entry, r) {
-  const { meta, chip } = entry;
+  const { meta } = entry;
   meta.innerHTML = '';
-  meta.append(chip, h('span', { class: 'sep', text: '•' }));
   const parts = [];
   if (r.status === 'downloading') {
     parts.push(h('span', { class: 'speed-tag', text: fmtSpeed(r.speed) }));
     parts.push(h('span', { class: 'sep', text: '•' }));
-    parts.push(h('span', { class: 'eta-tag', text: t('eta') + ' ' + fmtEta(r.eta) }));
+    parts.push(h('span', { class: 'eta-tag', text: t('eta') + ': ' + fmtEta(r.eta) }));
     parts.push(h('span', { class: 'sep', text: '•' }));
   }
   parts.push(h('span', { text: fmtBytes(r.received) + (r.size ? ' / ' + fmtBytes(r.size) : '') }));
-  if (r.error) parts.push(h('span', { class: 'chip err', text: r.error.slice(0, 40) }));
+  if (r.completedAt) {
+    parts.push(h('span', { class: 'sep', text: '•' }));
+    parts.push(h('span', { text: fmtDate(r.completedAt) }));
+  }
+  if (r.error) {
+    parts.push(h('span', { class: 'sep', text: '•' }));
+    parts.push(h('span', { class: 'err-text', title: r.error, text: r.error.slice(0, 80) }));
+  }
   meta.append(...parts);
 }
 
@@ -156,8 +193,7 @@ function renderAct(entry, r) {
     act.append(btn(ic.play, t('fActive'), () => window.raad.dl.control(r.id, 'resume')));
   if (r.status === 'completed')
     act.append(btn(ic.open, t('ctxOpen'), () => window.raad.dl.open(r.id)));
-  else
-    act.append(btn(ic.folder, t('ctxFolder'), () => window.raad.dl.showInFolder(r.id)));
+  act.append(btn(ic.folder, t('ctxFolder'), () => window.raad.dl.showInFolder(r.id)));
   act.append(btn(ic.trash, t('ctxRemove'), () => rowMenuRemove(r), 'danger'));
 }
 

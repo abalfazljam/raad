@@ -36,7 +36,6 @@ window.state = window.state || {}; // shared with views.js state object
     root.dataset.style = s.style || 'glass';
     root.dataset.accent = s.accent || 'indigo';
     root.dataset.anim = s.animations === false ? 'off' : 'on';
-    root.dataset.deco = s.deco || 'none';
     root.dataset.radius = s.radius || 'md';
     root.dataset.font = s.fontScale || 'm';
     root.dataset.glow = s.glow || 'soft';
@@ -106,18 +105,9 @@ window.state = window.state || {}; // shared with views.js state object
   /* ---------- live events from main ---------- */
   window.raad.onEvent(async (e) => {
     switch (e.type) {
-      case 'dl:progress': {
-        const entry = state.rows.get(e.id);
-        if (!entry) break;
-        const r = entry.rec;
-        r.received = e.received; r.size = e.size; r.speed = e.speed; r.eta = e.eta;
-        entry.pct.textContent = pctText(r);
-        entry.pbar.style.width = pctW(r);
-        renderMeta(entry, r);
-        state.speeds.set(e.id, e.speed || 0);
-        updateStatusTotals();
+      case 'dl:progress':
+        Views.noteProgress(e);   // coalesced DOM flush (250ms)
         break;
-      }
       case 'dl:status': {
         const entry = state.rows.get(e.id);
         const rec = entry ? entry.rec : null;

@@ -68,8 +68,7 @@ function defaultSettings() {
     token: crypto.randomBytes(12).toString('hex'),
     autostart: false,
     closeToTray: true,
-    /* appearance extras (v1.1) */
-    deco: 'none',            // none | aurora | stars | waves | particles | mesh
+    /* appearance extras */
     radius: 'md',            // sm | md | lg
     fontScale: 'm',          // s | m | l | xl
     glow: 'soft',            // off | soft | vivid
@@ -94,6 +93,13 @@ function createMain() {
   }));
   mainWin.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   mainWin.once('ready-to-show', () => mainWin.show());
+  /* self-heal: if the renderer crashes (GPU/driver glitches), reload instead of
+   * leaving a corrupted/overlapping UI on screen */
+  mainWin.webContents.on('render-process-gone', (_e, details) => {
+    if (details && details.reason === 'clean-exit') return;
+    console.error('[raad] renderer gone:', details && details.reason);
+    setTimeout(() => { try { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.reload(); } catch { } }, 900);
+  });
   mainWin.on('maximize', () => broadcast('evt', { type: 'win:max', value: true }));
   mainWin.on('unmaximize', () => broadcast('evt', { type: 'win:max', value: false }));
 

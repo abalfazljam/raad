@@ -16,11 +16,11 @@ const path = require('path');
 const { execFile } = require('child_process');
 const U = require('./util');
 
-const MAX_ENTRIES = 5000;
+const MAX_ENTRIES = 20000;
 /* IDM's own service URLs are not user downloads */
 const IDM_OWN_RE = /internetdownloadmanager\.com|tonec\.com|secure\.internetdownloadmanager/i;
-const URL_LINE_RE = /^(https?:\/\/|ftp:\/\/)\S+$/i;
-const URL_GLOBAL_RE = /\b(?:https?:\/\/|ftp:\/\/)[^\s"'<>()\[\]{}]+/gi;
+const URL_LINE_RE = /^(?:(?:https?|ftp):\/\/|www\.)\S+$/i;
+const URL_GLOBAL_RE = /\b(?:(?:https?|ftp):\/\/|www\.)[^\s"'<>()\[\]{}]+/gi;
 
 /* ---------- text decoding (any of: UTF-16LE BOM, UTF-16BE BOM, UTF-8/ANSI) ---------- */
 function decodeTextBuffer(buf) {
@@ -31,7 +31,14 @@ function decodeTextBuffer(buf) {
   return buf.toString('utf8').replace(/\u0000/g, '');
 }
 
-/* ---------- history / list text parsing (IDM's own transfer format) ---------- */
+/* ---------- history / list text parsing (IDM's own transfer format) ----------
+ * Tolerant by design: the FULL IDM history list must come over, including
+ * entries whose local file was deleted long ago. We therefore:
+ *   • scan every line (and embedded URLs inside longer lines)
+ *   • accept scheme-less www.* URLs
+ *   • never check whether the local file still exists (we can't know it)
+ *   • only dedupe exact duplicate URLs, never drop otherwise
+ */
 function parseHistoryText(buf) {
   const text = decodeTextBuffer(buf);
   const entries = [];
@@ -42,6 +49,7 @@ function parseHistoryText(buf) {
     const urls = URL_LINE_RE.test(line) ? [line] : (line.match(URL_GLOBAL_RE) || []);
     for (let url of urls) {
       url = url.replace(/[.,;:)\]]+$/, '').trim();
+      if (/^www\./i.test(url)) url = 'http://' + url;
       if (!/^https?:\/\//i.test(url)) continue;            // http(s) only for history import
       if (url.length > 2000 || IDM_OWN_RE.test(url)) continue;
       if (seen.has(url)) continue;
@@ -202,11 +210,29 @@ function guessSettings(values) {
   return guesses;
 }
 
-/* ---------- Windows live import: UrlHistory.txt + reg query ---------- */
-function idmHistoryPaths() {
+/* ---------- Windows live import: merge EVERY UrlHistory* file + reg query ---------- */
+function idmHistoryDir() {
   const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-  const dir = path.join(appData, 'IDM');
+  return path.join(appData, 'IDM');
+}
+/* kept for compat */
+function idmHistoryPaths() {
+  const dir = idmHistoryDir();
   return [path.join(dir, 'UrlHistory.txt'), path.join(dir, 'UrlHistory2.txt')];
+}
+/* IDM may split its list across UrlHistory.txt / UrlHistory2.txt / backups —
+ * read ALL of them and merge (exact-URL dedupe), biggest-first by mtime. */
+function idmHistoryFiles() {
+  const dir = idmHistoryDir();
+  let files = [];
+  try {
+    files = fs.readdirSync(dir)
+      .filter(f => /^urlhistory/i.test(f) && /\.(txt|bak)$/i.test(f))
+      .map(f => ({ f: path.join(dir, f), m: fs.statSync(path.join(dir, f)).mtimeMs }))
+      .sort((a, b) => b.m - a.m)
+      .map(x => x.f);
+  } catch { }
+  return files;
 }
 
 function queryWinSettings() {
@@ -232,23 +258,26 @@ function importAuto() {
       return resolve({ ok: false, error: 'auto-import works only on Windows. On the old PC copy %APPDATA%\\IDM\\UrlHistory.txt and import it via the file method.' });
     }
     (async () => {
-      let entries = [];
-      let histFile = '';
-      for (const f of idmHistoryPaths()) {
-        if (!fs.existsSync(f)) continue;
+      const merged = new Map();
+      const files = [];
+      for (const f of idmHistoryFiles()) {
         try {
           const parsed = parseHistoryText(fs.readFileSync(f));
-          if (parsed.length && !entries.length) { entries = parsed; histFile = f; }
+          if (parsed.length) {
+            files.push(f);
+            for (const en of parsed) if (!merged.has(en.url)) merged.set(en.url, en);
+          }
         } catch { }
       }
+      const entries = [...merged.values()].slice(0, MAX_ENTRIES);
       const settings = await queryWinSettings();
       if (!entries.length && !settings.length) {
         return resolve({
           ok: false,
-          error: 'IDM history not found (looked for %APPDATA%\\IDM\\UrlHistory.txt). Copy that file from the old PC and use the file method — or export the list from IDM: Tasks → Export.'
+          error: 'IDM history not found (scanned every UrlHistory* file in %APPDATA%\\IDM). Copy that file from the old PC and use the file method — or export the full list from IDM: Tasks → Export.'
         });
       }
-      resolve({ ok: true, entries, settings, totalValues: entries.length, histFile });
+      resolve({ ok: true, entries, settings, totalValues: entries.length, histFile: files[0] || '', histFiles: files });
     })();
   });
 }
@@ -268,5 +297,5 @@ function importFromFile(filePath) {
 module.exports = {
   parseRegFile, decodeIdmStrings, extractEntries, guessSettings,
   parseHistoryText, extractFromListFile: parseHistoryText,
-  importFromFile, importAuto, idmHistoryPaths
+  importFromFile, importAuto, idmHistoryPaths, idmHistoryFiles, idmHistoryDir
 };

@@ -67,16 +67,10 @@ module.exports = async function run(ctx) {
     await shot('view-downloads-flat');
     await js(win, `window.raad.settings.set({style:'glass'})`);
 
-    // animated deco themes (v1.1)
-    for (const d of ['aurora', 'stars', 'waves', 'particles', 'mesh']) {
-      await js(win, `window.raad.settings.set({deco:'${d}'})`);
-      await sleep(800);
-      await shot('theme-' + d);
-    }
-    await js(win, `window.raad.settings.set({deco:'none'})`);
+    // v1.2: animated background themes were REMOVED — verify dark/light/styles only
     await js(win, `window.nav('settings')`);
     await sleep(900);
-    await js(win, `const w = document.querySelector('.settings-wrap'); if (w) w.scrollTop = 560;`);
+    await js(win, `const w = document.querySelector('.settings-wrap'); if (w) w.scrollTop = 190;`);
     await sleep(500);
     await shot('view-settings-appearance');
     await js(win, `window.nav('downloads')`);

@@ -1,11 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
-   Raad DM — animated decoration themes + appearance scales
-   decos: aurora / stars / waves / particles / mesh
-   All decorations live in the background layer ONLY —
-   content panels stay solid, so text readability is preserved.
+   Raad DM — appearance scales (v1.2: animated background
+   themes were removed; dark/light + glass/flat/soft remain)
    ═══════════════════════════════════════════════════════════ */
-
-.deco { display: none; position: absolute; pointer-events: none; will-change: transform, opacity; }
 
 /* ---------- corner radius scale ---------- */
 [data-radius="sm"] { --radius: 9px; }
@@ -21,121 +17,9 @@
 /* ---------- compact density ---------- */
 [data-density="compact"] .view { padding: 12px 16px; }
 [data-density="compact"] .dl-list { gap: 6px; }
-[data-density="compact"] .dl-row { padding: 8px 12px; gap: 10px; }
+[data-density="compact"] .dl-row { padding: 7px 12px; gap: 10px; }
 [data-density="compact"] .f-ic { flex-basis: 36px; width: 36px; height: 36px; border-radius: 10px; }
 [data-density="compact"] .set-card { padding: 13px 16px; }
 [data-density="compact"] .set-row { min-height: 34px; padding: 5px 0; }
 [data-density="compact"] #titlebar { height: 40px; flex-basis: 40px; }
 [data-density="compact"] .dl-toolbar { gap: 9px; margin-bottom: 9px; }
-
-/* ═══════════════ AURORA — drifting polar lights ═══════════════ */
-[data-deco="aurora"] .aurora-a, [data-deco="aurora"] .aurora-b {
-  display: block; width: 900px; height: 520px; border-radius: 45%;
-  filter: blur(72px); mix-blend-mode: screen; opacity: .5;
-}
-[data-mode="light"] [data-deco="aurora"] .aurora-a,
-[data-mode="light"] [data-deco="aurora"] .aurora-b { mix-blend-mode: multiply; opacity: .3; filter: blur(80px); }
-[data-deco="aurora"] .aurora-a {
-  top: -160px; inset-inline-start: -180px;
-  background: conic-gradient(from 120deg at 50% 50%, #22d3ee, #6366f1, #a855f7, #10b981, #22d3ee);
-  animation: auroraA 26s ease-in-out infinite;
-}
-[data-deco="aurora"] .aurora-b {
-  bottom: -220px; inset-inline-end: -200px;
-  background: conic-gradient(from -40deg at 50% 50%, #f472b6, #8b5cf6, #06b6d4, #f472b6);
-  animation: auroraB 32s ease-in-out infinite;
-}
-@keyframes auroraA {
-  0%, 100% { transform: rotate(0deg) translate(0, 0) scale(1); }
-  33% { transform: rotate(38deg) translate(90px, 50px) scale(1.15); }
-  66% { transform: rotate(-22deg) translate(-60px, 90px) scale(.92); }
-}
-@keyframes auroraB {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(-32deg) translate(-110px, -60px) scale(1.2); }
-}
-
-/* ═══════════════ STARS — twinkling night sky ═══════════════ */
-[data-deco="stars"] .star-field {
-  display: block; width: 2px; height: 2px; border-radius: 50%;
-  background: transparent; opacity: .9;
-  box-shadow:
-    120px 90px 0 0 rgba(255,255,255,.9), 340px 40px 0 0 rgba(255,255,255,.55),
-    520px 210px 0 0 rgba(255,255,255,.8), 700px 60px 0 0 rgba(255,255,255,.5),
-    880px 300px 0 0 rgba(255,255,255,.85), 1080px 120px 0 0 rgba(255,255,255,.6),
-    1260px 380px 0 0 rgba(255,255,255,.9), 1450px 220px 0 0 rgba(255,255,255,.5),
-    1620px 90px 0 0 rgba(255,255,255,.75), 1780px 420px 0 0 rgba(255,255,255,.65),
-    90px 420px 0 0 rgba(255,255,255,.7), 280px 560px 0 0 rgba(255,255,255,.5),
-    470px 700px 0 0 rgba(255,255,255,.85), 660px 620px 0 0 rgba(255,255,255,.55),
-    830px 780px 0 0 rgba(255,255,255,.8), 1010px 560px 0 0 rgba(255,255,255,.5),
-    1200px 860px 0 0 rgba(255,255,255,.7), 1390px 640px 0 0 rgba(255,255,255,.6),
-    1560px 900px 0 0 rgba(255,255,255,.85), 240px 860px 0 0 rgba(255,255,255,.5),
-    420px 980px 0 0 rgba(255,255,255,.75), 610px 1040px 0 0 rgba(255,255,255,.5),
-    800px 1120px 0 0 rgba(255,255,255,.8), 990px 990px 0 0 rgba(255,255,255,.6),
-    1150px 1180px 0 0 rgba(255,255,255,.7), 1340px 1060px 0 0 rgba(255,255,255,.5),
-    1530px 1140px 0 0 rgba(255,255,255,.8), 1700px 980px 0 0 rgba(255,255,255,.6),
-    180px 260px 0 0 rgba(148,197,255,.8), 560px 340px 0 0 rgba(196,181,253,.7),
-    940px 260px 0 0 rgba(148,197,255,.7), 1300px 500px 0 0 rgba(196,181,253,.6),
-    1640px 620px 0 0 rgba(148,197,255,.7), 380px 760px 0 0 rgba(196,181,253,.6),
-    740px 460px 0 0 rgba(148,197,255,.6), 1100px 700px 0 0 rgba(196,181,253,.5);
-  animation: twinkle 3.6s ease-in-out infinite, starDrift 90s linear infinite;
-}
-[data-deco="stars"] .sf2 { transform: scale(1.35); opacity: .5; animation-duration: 5.2s, 140s; }
-[data-mode="light"] [data-deco="stars"] .star-field { box-shadow: none; display: none; }
-@keyframes twinkle { 0%, 100% { opacity: .9; } 50% { opacity: .35; } }
-@keyframes starDrift { to { transform: translate(-140px, 40px); } }
-
-/* ═══════════════ WAVES — slow rolling sea ═══════════════ */
-[data-deco="waves"] .wave-a, [data-deco="waves"] .wave-b {
-  display: block; inset-inline-start: -50%; width: 200%; height: 260px; border-radius: 0;
-  bottom: -60px; opacity: .34; filter: blur(26px);
-  background:
-    radial-gradient(60% 100% at 25% 100%, var(--acc) 0%, transparent 62%),
-    radial-gradient(55% 110% at 60% 100%, var(--acc-deep) 0%, transparent 60%),
-    radial-gradient(50% 90% at 88% 100%, var(--acc2) 0%, transparent 58%);
-  animation: waveRoll 18s ease-in-out infinite;
-}
-[data-deco="waves"] .wave-b {
-  bottom: -20px; height: 190px; opacity: .26; transform: scaleX(-1);
-  animation-duration: 26s; animation-direction: reverse;
-}
-[data-mode="light"] [data-deco="waves"] .wave-a, [data-mode="light"] [data-deco="waves"] .wave-b { opacity: .22; }
-@keyframes waveRoll {
-  0%, 100% { transform: translateX(0) scaleY(1); }
-  50% { transform: translateX(6%) scaleY(1.25); }
-}
-
-/* ═══════════════ PARTICLES — floating dust rising ═══════════════ */
-[data-deco="particles"] .particle-field {
-  display: block; inset: -10% -10% 0; border-radius: 0;
-  background-image:
-    radial-gradient(3px 3px at 12% 80%, color-mix(in srgb, var(--acc) 80%, white) 40%, transparent 42%),
-    radial-gradient(2px 2px at 28% 62%, var(--acc2) 40%, transparent 42%),
-    radial-gradient(4px 4px at 44% 88%, color-mix(in srgb, var(--acc) 55%, white) 40%, transparent 42%),
-    radial-gradient(2px 2px at 58% 70%, var(--acc2) 40%, transparent 42%),
-    radial-gradient(3px 3px at 72% 92%, var(--acc) 40%, transparent 42%),
-    radial-gradient(2px 2px at 86% 64%, var(--acc2) 40%, transparent 42%),
-    radial-gradient(3px 3px at 94% 84%, color-mix(in srgb, var(--acc) 70%, white) 40%, transparent 42%);
-  background-size: 480px 480px; opacity: .5;
-  animation: particlesUp 34s linear infinite;
-}
-[data-deco="particles"] .pf2 { background-size: 300px 300px; opacity: .3; animation-duration: 22s; animation-direction: reverse; }
-[data-mode="light"] [data-deco="particles"] .particle-field { opacity: .3; }
-@keyframes particlesUp { to { background-position: 0 -960px, 0 -1200px; } }
-
-/* ═══════════════ MESH — orbiting vivid blobs ═══════════════ */
-[data-deco="mesh"] .deco-blob {
-  display: block; width: 460px; height: 460px; border-radius: 50%;
-  filter: blur(95px); opacity: .4; mix-blend-mode: screen;
-}
-[data-mode="light"] [data-deco="mesh"] .deco-blob { mix-blend-mode: multiply; opacity: .26; }
-[data-deco="mesh"] .mb1 { background: var(--acc); top: 8%; inset-inline-start: 12%; animation: meshOrbit1 30s ease-in-out infinite; }
-[data-deco="mesh"] .mb2 { background: var(--acc2); bottom: 4%; inset-inline-end: 10%; animation: meshOrbit2 36s ease-in-out infinite; }
-[data-deco="mesh"] .mb3 { background: #f472b6; width: 340px; height: 340px; top: 42%; inset-inline-start: 46%; opacity: .3; animation: meshOrbit3 42s ease-in-out infinite; }
-@keyframes meshOrbit1 { 50% { transform: translate(240px, 130px) scale(1.25); } }
-@keyframes meshOrbit2 { 50% { transform: translate(-220px, -110px) scale(1.18); } }
-@keyframes meshOrbit3 { 33% { transform: translate(-170px, 110px) scale(1.3); } 66% { transform: translate(150px, -90px) scale(.85); } }
-
-/* animations off → decorations disappear entirely (clean static look) */
-[data-anim="off"] .deco { display: none !important; }
-@media (prefers-reduced-motion: reduce) { .deco { display: none !important; } }

@@ -104,7 +104,9 @@ class Engine extends EventEmitter {
       filename: U.sanitizeFilename(filename || U.filenameFromUrl(url) || 'download'),
       folder: folder || '',
       category: 'other', size: null, received: 0, speed: 0, eta: null,
-      status: 'queued', error: '', source,
+      /* start=false (IDM history import, "queue only") → land as PAUSED:
+       * never auto-starts, never counted as active, drained only on explicit resume. */
+      status: start ? 'queued' : 'paused', error: '', source,
       addedAt: Date.now(), startedAt: null, completedAt: null,
       engine: U.isVideoSite(url) && this.useYtdlp ? 'yt' : 'http'
     };
