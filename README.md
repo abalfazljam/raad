@@ -8,10 +8,10 @@
 
 # ⚡ رعد — دانلود منیجر مدرن جایگزین IDM
 
-[![Release](https://img.shields.io/badge/دانلود-آخرین_نسخه-6366f1)](../../releases/latest)
-[![Platform](https://img.shields.io/badge/پلتفرم-Windows-blue)](../../releases)
-[![Electron](https://img.shields.io/badge/Electron-33-47848F)](https://www.electronjs.org/)
-[![License: MIT](https://img.shields.io/badge/مجوز-MIT-green)](LICENSE)
+[![دانلود: آخرین نسخه](assets/badge-download-latest.svg)](../../releases/latest)
+[![پلتفرم: Windows](assets/badge-platform-windows.svg)](../../releases)
+[![Electron: 33](assets/badge-electron-33.svg)](https://www.electronjs.org/)
+[![MIT: مجوز](assets/badge-license-mit.svg)](LICENSE)
 
 **رعد** یک دانلود منیجر مدرن، متن‌باز (MIT) و **پرتابل** ساخته‌شده با **Electron** است — طراحی‌شده به‌عنوان جایگزین واقعی IDM: موتور دانلود چندتکه، توقف/ادامه، زمان‌بندی، واردکردن گروهی از کلیپ‌بورد، افزونه کروم/فایرفاکس با پنجره دانلود شناور و انتقال واقعی تاریخچه IDM.
 
