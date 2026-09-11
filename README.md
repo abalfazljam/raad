@@ -1,113 +1,117 @@
-<div dir="ltr">
+<div align="center">
 
-# ⚡ Raad — Modern Download Manager (IDM Alternative)
-
-[![Release](https://img.shields.io/badge/download-latest-6366f1)](../../releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows-blue)](../../releases)
-[![Electron](https://img.shields.io/badge/Electron-33-47848F)](https://www.electronjs.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Language](https://img.shields.io/badge/UI-fa%20%7C%20en-orange)](#-features)
-
-**[نسخه فارسی 🇮🇷](README.fa.md)**
-
-**Raad** (pronounced *ra'ad*, Persian for **Thunder**) is a modern, open-source download manager built with **Electron** — designed as a practical IDM replacement: multi-segment engine, pause/resume, scheduler, clipboard batch import, Chrome/Firefox extensions with an IDM-style floating download window, and real IDM history migration.
-
-> **Portable, not installer.** Download `RaadDM-Portable-x.x.x.exe` from [Releases](../../releases/latest), double-click, done. All data lives in a `Raad-Data` folder next to the exe.
-
-| Downloads | Animated theme (Aurora) |
-|---|---|
-| ![downloads](screenshots/view-downloads-populated.png) | ![aurora](screenshots/theme-aurora.png) |
-
-| Appearance settings | Floating download window (IDM-style) |
-|---|---|
-| ![settings](screenshots/view-settings-appearance.png) | ![dialog](screenshots/dialog.png) |
+[![فارسی](https://img.shields.io/badge/%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-%E2%97%8F-6366f1?style=for-the-badge)](README.md)
+[![English](https://img.shields.io/badge/English-%E2%86%92-374151?style=for-the-badge)](README.en.md)
 
 </div>
 
 <div dir="rtl">
+
+# ⚡ رعد — دانلود منیجر مدرن جایگزین IDM
+
+[![Release](https://img.shields.io/badge/دانلود-آخرین_نسخه-6366f1)](../../releases/latest)
+[![Platform](https://img.shields.io/badge/پلتفرم-Windows-blue)](../../releases)
+[![Electron](https://img.shields.io/badge/Electron-33-47848F)](https://www.electronjs.org/)
+[![License: MIT](https://img.shields.io/badge/مجوز-MIT-green)](LICENSE)
+
+**رعد** یک دانلود منیجر مدرن، متن‌باز (MIT) و **پرتابل** ساخته‌شده با **Electron** است — طراحی‌شده به‌عنوان جایگزین واقعی IDM: موتور دانلود چندتکه، توقف/ادامه، زمان‌بندی، واردکردن گروهی از کلیپ‌بورد، افزونه کروم/فایرفاکس با پنجره دانلود شناور و انتقال واقعی تاریخچه IDM.
+
+> **پرتابل، بدون نصب‌کننده.** فایل `RaadDM-Portable-x.x.x.exe` را از [Releases](../../releases/latest) بگیر، دوبار کلیک کن — تمام. همه داده‌ها در پوشه `Raad-Data` کنار همان فایل ذخیره می‌شود.
+
+| لیست دانلود | تم متحرک (شفق قطبی) |
+|---|---|
+| ![downloads](screenshots/view-downloads-populated.png) | ![aurora](screenshots/theme-aurora.png) |
+
+| تنظیمات ظاهر | پنجره شناور دانلود (مثل IDM) |
+|---|---|
+| ![settings](screenshots/view-settings-appearance.png) | ![dialog](screenshots/dialog.png) |
 
 ---
 
 ## ✨ امکانات
 
 - 🚀 **موتور دانلود چندتکه** — تا ۳۲ اتصال موازی برای هر فایل، مثل IDM
-- ⏸ **توقف / ادامه / از سرگیری** — حتی بعد از بستن برنامه (state file کنار فایل)
-- 📥 **صف دانلود** — تعداد دانلود همزمان قابل تنظیم + شروع/توقف گروهی
-- 🗂 **دسته‌بندی خودکار** — Video / Music / Archive / Program / Document / Image
+- ⏸ **توقف / ادامه / از سرگیری** — حتی بعد از بستن برنامه (فایل state کنار فایل ناتمام ذخیره می‌شود)
+- 📥 **صف دانلود** — تعداد دانلود همزمان قابل تنظیم + «شروع همه / توقف همه»
+- 🗂 **دسته‌بندی خودکار** — Video / Music / Archive / Program / Document / Image در زیرپوشه‌های مجزا
 - 🐢 **محدودیت سرعت کلی** — بدون قطع دانلودها
-- ⏰ **زمان‌بندی** — بازه‌های زمانی روزانه/هفتگی + خاموش‌کردن خودکار سیستم بعد از اتمام صف
-- 📋 **مانیتور کلیپ‌بورد** — تشخیص خودکار یک یا چند لینک کپی‌شده + افزودن گروهی
-- 🌐 **افزونه کروم و فایرفاکس** — کلیک روی لینک دانلود ← پنجره شناور رعد (تجربه IDM)؛ با یک کلیک روی آیکون افزونه فعال/غیرفعال می‌شود
+- ⏰ **زمان‌بندی** — بازه‌های روزانه/هفتگی + گزینه خاموش‌کردن خودکار سیستم پس از خالی‌شدن صف
+- 📋 **مانیتور کلیپ‌بورد** — تشخیص خودکار یک یا چند لینک کپی‌شده + افزودن گروهی با تیک
+- 🌐 **افزونه کروم و فایرفاکس** — کلیک روی لینک دانلود ← پنجره شناور رعد (تجربه IDM)؛ با یک کلیک فعال/غیرفعال می‌شود (بج OFF روی آیکون)
 - 🔄 **انتقال از IDM** — تاریخچه از فایل `UrlHistory.txt` خود IDM + تنظیمات از رجیستری
-- 🎨 **ظاهر کامل قابل شخصی‌سازی** — تیره/روشن/سیستمی × ۳ قالب (شیشه‌ای، فلت، نرم) × ۶ رنگ آماده + رنگ دلخواه + **۵ تم پس‌زمینه متحرک** (شفق قطبی، ستاره‌باران، موج، ذرات، مش رنگی) + گردی گوشه‌ها + اندازه متن + شدت نور + حالت فشرده
-- 🌍 **دوزبانه** — فارسی/انگلیسی با RTL/LTR خودکار؛ فونت وزیرمتن داخل بسته
+- 🎨 **ظاهر کاملاً شخصی‌سازی‌شدنی** — تیره/روشن/سیستمی × ۳ قالب (شیشه‌ای، فلت، نرم) × ۶ رنگ آماده + **رنگ دلخواه** + **۵ تم پس‌زمینه متحرک** (شفق قطبی، ستاره‌باران، موج، ذرات، مش رنگی) + گردی گوشه‌ها + اندازه متن + شدت نور پس‌زمینه + حالت فشرده
+- 🌍 **دوزبانه** — فارسی/انگلیسی، جهت RTL/LTR خودکار، فونت وزیرمتن داخل بسته
 
 ## 🖼 تم‌های انیمیشنی
 
-| شفق قطبی | ستاره‌باران | موج |
+| شفق قطبی | ستاره‌باران | مش رنگی |
 |---|---|---|
-| ![aurora](screenshots/theme-aurora.png) | ![stars](screenshots/theme-stars.png) | ![waves](screenshots/theme-waves.png) |
+| ![aurora](screenshots/theme-aurora.png) | ![stars](screenshots/theme-stars.png) | ![mesh](screenshots/theme-mesh.png) |
 
-| ذرات | مش رنگی | حالت روشن |
+| ذرات | موج | حالت روشن |
 |---|---|---|
-| ![particles](screenshots/theme-particles.png) | ![mesh](screenshots/theme-mesh.png) | ![light](screenshots/view-downloads-light.png) |
+| ![particles](screenshots/theme-particles.png) | ![waves](screenshots/theme-waves.png) | ![light](screenshots/view-downloads-light.png) |
 
-*(متن همیشه روی پنل‌های واضح نمایش داده می‌شود — تم‌های متحرک فقط پس‌زمینه را زنده می‌کنند.)*
+متن‌ها همیشه روی پنل‌های واضح نشان داده می‌شوند — تم‌های متحرک فقط پس‌زمینه را زنده می‌کنند و خوانایی حفظ می‌شود.
 
-## 📥 نصب (بدون نصب‌کننده!)
+## 📥 نصب (بدون نصب‌کننده، بدون دستور)
 
-1. از [Releases](../../releases/latest) فایل **`RaadDM-Portable-x.x.x.exe`** را دانلود کن.
-2. دوبار کلیک کن — همین! (اجرای اول چند ثانیه طول می‌کشد چون برنامه خودش را در پوشه موقت باز می‌کند)
-3. اگر SmartScreen هشدار داد: `More info → Run anyway` (فایل امضای دیجیتال ندارد).
-4. حذف کامل = پاک کردن exe و پوشه `Raad-Data` کنارش.
+1. از صفحه [Releases](../../releases/latest) فایل **`RaadDM-Portable-x.x.x.exe`** را دانلود کن.
+2. دوبار کلیک کن. اجرای اول چند ثانیه بیشتر طول می‌کشد (برنامه خودش را در پوشه موقت ویندوز باز می‌کند — طبیعی است).
+3. اگر SmartScreen هشدار داد: `More info → Run anyway` (چون فایل امضای دیجیتال ندارد).
+4. حذف کامل برنامه = پاک کردن فایل exe و پوشه `Raad-Data` کنارش. هیچ چیزی در رجیستری نصب نمی‌شود.
 
-## 🌐 افزونه مرورگر
+## 🌐 نصب افزونه مرورگر
 
-| کروم / کرومیوم | فایرفاکس |
+| کروم / Edge / Brave | فایرفاکس |
 |---|---|
-| `chrome://extensions` → Developer mode → **Load unpacked** → پوشه `extension/chrome` | `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → `extension/firefox/manifest.json` |
+| `chrome://extensions` → Developer mode → **Load unpacked** → پوشه `extension/chrome` | `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → فایل `extension/firefox/manifest.json` |
 
-بعد در برنامه: **تنظیمات ← افزونه مرورگر ← کپی JSON** و در پاپ‌آپ افزونه Paste کن.
-- کلیک روی **دکمه بزرگ ON/OFF** در پاپ‌آپ افزونه = فعال/غیرفعال‌کردن شنود دانلود (روی آیکون هم بج OFF می‌آید)
+سپس در برنامه رعد: **تنظیمات ← افزونه مرورگر ← کپی JSON** و در پاپ‌آپ افزونه Paste و Save کن.
+
+- کلیک روی **دکمه بزرگ ON/OFF** بالای پاپ‌آپ افزونه = فعال/غیرفعال کردن شنود دانلودها
 - راست‌کلیک در صفحه ← «Disable/Enable Raad interception»
+- بعد از آن: کلیک روی هر لینک دانلود در مرورگر ← پنجره شناور رعد باز می‌شود و دانلود با رعد ادامه پیدا می‌کند
 
-## 🔄 انتقال تاریخچه از IDM
+## 🔄 انتقال تاریخچه و تنظیمات IDM
 
-IDM تاریخچه را در رجیستری نگه نمی‌دارد! روش درست (مطابق مستندات رسمی IDM):
+IDM تاریخچه دانلودها را در رجیستری نگه نمی‌دارد — فایل `UrlHistory.txt` مخصوص این کار است (طبق مستندات رسمی IDM). روش‌های انتقال در رعد:
 
 | روش | توضیح |
 |---|---|
-| **خودکار** (همان ویندوز) | برنامه فایل `%APPDATA%\IDM\UrlHistory.txt` را می‌خواند + تنظیمات را از رجیستری — فقط IDM باید بسته باشد |
-| **فایل** (هر سیستم‌عاملی) | فایل `UrlHistory.txt` را از رایانه قدیمی کپی کن و همین‌جا وارد کن |
-| **لیست لینک** | خروجی متنی خود IDM از منوی `Tasks → Export` (یا هر فایل متنی لینک‌دار) |
-| **تنظیمات** | Export کلید `HKEY_CURRENT_USER\Software\DownloadManager` از regedit و دادن فایل `.reg` |
+| **خودکار** (همان ویندوز) | در برنامه: «انتقال از IDM ← انتقال خودکار» — فایل `%APPDATA%\IDM\UrlHistory.txt` خوانده می‌شود + تنظیمات از رجیستری. فقط IDM باید بسته باشد. |
+| **فایل تاریخچه** | از رایانه قدیمی: پوشه `%APPDATA%\IDM` ← کپی `UrlHistory.txt` ← در رعد: «فایل تاریخچه / اکسپورت IDM» |
+| **لیست لینک** | در خود IDM منوی `Tasks → Export` (خروجی متنی) یا هر فایل متنی حاوی لینک |
+| **تنظیمات IDM** | در `regedit` کلید `HKEY_CURRENT_USER\Software\DownloadManager` → Export → فایل `.reg` را در رعد بده |
 
-## 🛠 Build از سورس
+## 🛠 ساخت از سورس
 
 ```bash
 git clone https://github.com/abalfazljam/raad.git
 cd raad
 npm install
-npm start            # اجرای مستقیم
-npm run dist:win     # ساخت RaadDM-Portable.exe (ویندوز، پرتابل)
+npm start            # اجرای مستقیم (سورس)
+npm run dist:win     # ساخت RaadDM-Portable.exe ویندوز (پرتابل)
 ```
 
-## 🧱 معماری
+پیش‌نیاز: Node.js 18+ . بیلد ویندوز روی لینوکس هم انجام می‌شود (makensis نیتیو، بدون Wine).
+
+## 🧱 ساختار پروژه
 
 ```
-main/       → موتور دانلود، زمان‌بند، پل HTTP افزونه‌ها، پارسر IDM، پنجره اصلی
-preload/    → bridge امن (contextIsolation) به‌صورت window.raad
-renderer/   → UI (vanilla JS + CSS، بدون فریمورک) + پنجره شناور دانلود
-extension/  → افزونه Chrome (MV3) و Firefox (MV2)
+main/       → موتور دانلود (چندتکه + صف + محدودیت سرعت)، زمان‌بند، پل HTTP افزونه‌ها، پارسر IDM
+preload/    → پل امن (contextIsolation) به‌صورت window.raad
+renderer/   → رابط کاربری (JS خالص + CSS، بدون فریمورک) + پنجره شناور دانلود
+extension/  → افزونه Chrome (MV3) و Firefox (MV2) + راهنما
 native/     → (اختیاری) هاست Native Messaging
 scripts/    → ساخت آیکون، تست پارسر IDM، بسته‌بندی
 ```
 
-- **بدون هیچ وابستگی runtime** — فقط Electron؛ موتور دانلود روی `electron.net`
-- ذخیره‌سازی JSON اتمیک (بدون SQLite و بدون native module)
-- پل افزونه‌ها: HTTP لوکال `127.0.0.1` با توکن امنیتی
+- **صفر وابستگی runtime** — فقط Electron؛ موتور دانلود روی `electron.net`
+- ذخیره‌سازی JSON اتمیک (بدون SQLite، بدون native module)
+- پل افزونه‌ها: HTTP لوکال `127.0.0.1` با توکن امنیتی قابل بازیابی
 
-## 📄 License
+## 📄 مجوز
 
 MIT — رایگان برای استفاده شخصی و تجاری. ساخته‌شده با ⚡ برای کاربران فارسی‌زبان و همه جای دنیا.
 
