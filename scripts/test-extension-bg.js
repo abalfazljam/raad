@@ -9,7 +9,7 @@ const path = require('path');
 /* ---- stub electron for server.js ---- */
 const origLoad = Module._load;
 Module._load = function (request, parent, isMain) {
-  if (request === 'electron') return { app: { getVersion: () => '1.6.0-test' } };
+  if (request === 'electron') return { app: { getVersion: () => '1.7.0-test' } };
   return origLoad.apply(this, arguments);
 };
 
@@ -20,6 +20,8 @@ const stored = {};                       /* what chrome.storage.local holds   */
 const messageHandlers = [];
 const installHandlers = [];
 let downloadsListener = null;
+const dlLog = [];                        /* order of cancel/erase calls       */
+const dlItems = new Map();               /* id → mock browser download        */
 global.chrome = {
   storage: {
     local: {
@@ -42,7 +44,12 @@ global.chrome = {
   browserAction: {
     setBadgeText: () => { }, setBadgeBackgroundColor: () => { }
   },
-  downloads: { onCreated: { addListener: (fn) => { downloadsListener = fn; } } }
+  cookies: { getAll: async () => [{ name: 'sid', value: 's3cret' }] },
+  downloads: {
+    onCreated: { addListener: (fn) => { downloadsListener = fn; } },
+    cancel: async (id) => { if (!dlItems.has(id)) throw new Error('no item'); dlLog.push('cancel:' + id); },
+    erase: async (q) => { dlLog.push('erase:' + q.id); dlItems.delete(q.id); }
+  }
 };
 
 /* ---- boot the real server + real bg.js ---- */
@@ -62,7 +69,7 @@ global.fetch = (url, opts = {}) => {
 
 async function main() {
   const bridge = new BridgeServer(TOKEN);
-  bridge.on('add', (it) => added.push(it));
+  bridge.on('add', (it) => { added.push(it); dlLog.push('add-accepted'); });
   const port = await bridge.start(27500);
   console.log(`bridge listening on ${port}`);
 
@@ -124,6 +131,45 @@ async function main() {
     if (p && typeof p.then === 'function') p.then(res);
   });
   check('next pairing cycle picks up the rotated token', stored.token === 'rotated-token-77', `token=${stored.token}`);
+
+  /* 6 — v1.7 defaults: cookies ON (IDM behaviour), Persian-first UI        */
+  const liveCfg = await new Promise(res => {
+    const p = handler({ type: 'raad-get-config' }, {}, res);
+    if (p && typeof p.then === 'function') p.then(res);
+  });
+  check('cookies capture defaults to ON (authed links need the session)', liveCfg && liveCfg.cookies === true, `cookies=${liveCfg && liveCfg.cookies}`);
+  check('UI language defaults to Persian', (liveCfg && liveCfg.lang) === 'fa', `lang=${liveCfg && liveCfg.lang}`);
+
+  /* 7 — v1.7 interception ORDER: send first, cancel browser copy after.
+   *    This is the fix for “connected but no download”: v1.6 cancelled
+   *    first, so a failed handoff destroyed the user's download.          */
+  dlLog.length = 0;
+  added.length = 0;
+  dlItems.set(101, { id: 101, url: 'https://example.com/intercepted.zip', state: 'in_progress', referrer: 'https://example.com/page' });
+  await downloadsListener(dlItems.get(101));
+  await new Promise(r => setTimeout(r, 400));
+  check('intercepted download reached the app (add event fired)', added.some(a => (a.url || '').includes('intercepted.zip')), `added=${added.length}`);
+  check('intercepted download carried the browser cookies', added.some(a => (a.cookies || '').includes('sid=s3cret')));
+  check('browser copy cancelled only AFTER the app accepted it',
+    dlLog.indexOf('add-accepted') === 0 && dlLog.indexOf('cancel:101') > dlLog.indexOf('add-accepted'),
+    `order=${dlLog.join(',')}`);
+  check('cancelled download erased from the browser shelf', dlLog.includes('erase:101'));
+
+  /* 8 — completed browser download must be left alone (no duplicate)      */
+  dlLog.length = 0; added.length = 0;
+  dlItems.set(102, { id: 102, url: 'https://example.com/already-done.zip', state: 'complete', referrer: '' });
+  await downloadsListener(dlItems.get(102));
+  await new Promise(r => setTimeout(r, 300));
+  check('already-completed browser download is NOT hijacked', added.length === 0 && dlLog.length === 0, `added=${added.length} log=${dlLog.length}`);
+
+  /* 9 — Raad unreachable → browser download continues (never destroyed)  */
+  dlLog.length = 0; added.length = 0;
+  await bridge.shutdown();
+  dlItems.set(103, { id: 103, url: 'https://example.com/while-offline.zip', state: 'in_progress', referrer: '' });
+  await downloadsListener(dlItems.get(103));
+  await new Promise(r => setTimeout(r, 2500));
+  check('when Raad is down, the browser download is NOT cancelled', dlLog.length === 0, `log=${dlLog.join(',')}`);
+  await bridge.start(port + 9);                        /* bring it back up  */
 
   console.log(`\n──────── result ────────\n${pass}/${pass + fail} checks passed`);
   bridge.shutdown();

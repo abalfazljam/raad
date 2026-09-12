@@ -35,8 +35,9 @@ const STR = {
     authNote: 'Connected; token refreshed.'
   }
 };
-let lang = localStorage.getItem('raadLang') ||
-  ((api.i18n && api.i18n.getUILanguage && api.i18n.getUILanguage().startsWith('fa')) ? 'fa' : 'en');
+/* v1.7: Persian-first — the popup opens in Persian; the EN button switches
+ * (and remembers) English for whoever prefers it. */
+let lang = localStorage.getItem('raadLang') || 'fa';
 const L = () => STR[lang] || STR.en;
 
 function applyLang() {
@@ -52,7 +53,7 @@ function applyLang() {
   $('#btnSite').textContent = ($('#btnSite').dataset.on === '1') ? L().enableSite.replace('{h}', $('#btnSite').dataset.host || '') : L().disableSite;
   localStorage.setItem('raadLang', lang);
 }
-$('#btnLang').onclick = () => { lang = lang === 'fa' ? 'en' : 'fa'; applyLang(); refresh(); };
+$('#btnLang').onclick = () => { lang = lang === 'fa' ? 'en' : 'fa'; applyLang(); refresh(); sendMsg({ type: 'raad-set-config', patch: { lang } }); };
 
 /* ---------------- status ---------------- */
 function setStatus(kind, text, sub) {

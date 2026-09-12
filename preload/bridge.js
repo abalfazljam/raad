@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const listeners = new Set();
 ipcRenderer.on('evt', (_e, data) => listeners.forEach(fn => { try { fn(data); } catch { } }));
 ipcRenderer.on('dlg:init', (_e, data) => { window.__dlgInit = data; window.dispatchEvent(new CustomEvent('dlg:init', { detail: data })); });
+ipcRenderer.on('complete:init', (_e, data) => { window.__completeInit = data; window.dispatchEvent(new CustomEvent('complete:init', { detail: data })); });
 
 contextBridge.exposeInMainWorld('raad', {
   /* events from main */
@@ -17,7 +18,20 @@ contextBridge.exposeInMainWorld('raad', {
   win: {
     min: () => ipcRenderer.send('win:min'),
     max: () => ipcRenderer.send('win:max'),
-    close: () => ipcRenderer.send('win:close')
+    close: () => ipcRenderer.send('win:close'),
+    showMain: () => ipcRenderer.send('win:showMain')   /* v1.7: from tray-style windows */
+  },
+  /* v1.7: floating progress window */
+  prog: {
+    close: () => ipcRenderer.send('prog:close'),
+    min: () => ipcRenderer.send('prog:min'),
+    rows: (n) => ipcRenderer.send('prog:rows', n)
+  },
+  /* v1.7: per-file completion card — open / folder / copy / drag */
+  comp: {
+    close: () => ipcRenderer.send('complete:close'),
+    dragFile: (p) => ipcRenderer.send('drag:file', p),
+    copyFile: (p) => ipcRenderer.invoke('clip:copyFile', p)
   },
   dlg: {
     close: () => ipcRenderer.send('dlg:close'),
@@ -45,7 +59,6 @@ contextBridge.exposeInMainWorld('raad', {
     read: () => ipcRenderer.invoke('clip:read'),
     parse: () => ipcRenderer.invoke('clip:parse')
   },
-
   /* filesystem */
   fs: {
     pickFolder: (current) => ipcRenderer.invoke('fs:pickFolder', current),

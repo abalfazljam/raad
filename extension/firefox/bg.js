@@ -1,25 +1,23 @@
 'use strict';
-/* Raad DM v1.2 (for app v1.6) — extension background
+/* Raad DM v1.3 (for app v1.7) — extension background
  * Chrome MV3 service worker / Firefox MV2 event page — ONE shared codebase.
  *
- * v1.6 connection fixes (why v1.5 kept failing):
- *  1. AUTO-DISCOVERY — the extension now scans 127.0.0.1:27500..27520 and
- *     finds the app by itself. v1.5 relied on one hand-copied port, so the
- *     link broke whenever the app picked a different port.
- *  2. AUTO-PAIRING — after discovery it calls GET /pair (extension-origin
- *     only) and stores {port, token} automatically. Manual JSON paste is now
- *     an advanced fallback, not a requirement.
- *  3. SELF-HEALING — every send failure re-runs discovery/pairing once, so
- *     app restarts, port moves and token regeneration survive silently.
- *  4. HONEST STATUS — /ping reports auth state; popup/badge show the truth
- *     (v1.5 said "connected" while /add was failing with 401).
- *  5. REAL DOWNLOAD INTERCEPTION — chrome.downloads.onCreated catches every
- *     browser download (not just link clicks), cancels it and routes it to
- *     Raad — IDM behaviour. If Raad is unreachable the browser continues
- *     normally.
- *  6. FIREFOX-SAFE — AbortController timeouts (AbortSignal.timeout is missing
- *     on Firefox < 100) and a unified `api = browser || chrome` promise
- *     wrapper (v1.5 called .catch() on chrome.* which throws on Firefox).   */
+ * v1.7 DOWNLOAD-RELIABILITY fixes (why v1.6 could drop downloads):
+ *  1. SEND-FIRST, CANCEL-AFTER — v1.6 cancelled the browser download BEFORE
+ *     handing it to Raad. If that handoff failed for any reason, the user's
+ *     download was silently destroyed (browser copy cancelled, Raad never got
+ *     it). Now the item is sent to Raad first, and the browser copy is
+ *     cancelled ONLY after Raad accepts it. If Raad refuses → the normal
+ *     browser download simply continues.
+ *  2. COMPLETED GUARD — a browser download that already finished is left
+ *     alone (no duplicate in Raad).
+ *  3. COOKIES ON BY DEFAULT — IDM sends the browser session with every
+ *     download; authenticated links (login-required) failed without it.
+ *  4. PERSIAN-FIRST UI — popup and context menus default to Persian.
+ *
+ * v1.6 connection fixes (kept):
+ *  auto-discovery scan 27500..27520, auto /pair, self-healing sends,
+ *  honest status badge, unified browser/chrome promise wrapper.              */
 
 const api = (typeof browser !== 'undefined' && browser && browser.runtime) ? browser : chrome;
 
@@ -27,8 +25,9 @@ const DEFAULTS = {
   port: 27500,            /* preferred port (first candidate)              */
   token: '',              /* filled automatically by /pair                 */
   enabled: true,
-  cookies: false,
+  cookies: true,          /* v1.7: ON like IDM — auth'd links need session */
   notify: true,
+  lang: 'fa',             /* v1.7: Persian-first UI (popup + menus)        */
   disabledSites: [],
   lastGoodPort: 0,        /* remembered fast-path                          */
   lastSeenAt: 0           /* ms timestamp of last successful ping          */
@@ -185,9 +184,11 @@ async function sendToRaad(msg) {
       updateBadge();
       if (notify) {
         try {
+          const fa = (cfg.cache.lang || 'fa') !== 'en';
           api.notifications.create({
             type: 'basic', iconUrl: 'icons/icon48.png',
-            title: 'Raad', message: 'Sent to Raad ▸ ' + (body.filename || msg.url.slice(0, 60))
+            title: 'Raad ⚡',
+            message: (fa ? 'به رعد ارسال شد ▸ ' : 'Sent to Raad ▸ ') + (body.filename || msg.url.slice(0, 60))
           });
         } catch { }
       }
@@ -214,22 +215,22 @@ async function sendToRaad(msg) {
   }
 }
 
-/* ---------- browser-download interception (IDM style, v1.6) ---------- */
+/* ---------- browser-download interception (IDM style) ----------
+ * v1.7 ORDER: send to Raad FIRST; cancel the browser copy only AFTER Raad
+ * accepts the item. If Raad is unreachable or refuses, the ordinary browser
+ * download continues untouched — the user can never lose a file.           */
 if (api.downloads && api.downloads.onCreated) {
   api.downloads.onCreated.addListener(async (item) => {
     try {
-      if (!item || !item.url || !cfg.cache.enabled) return;
+      if (!item || !item.url || cfg.cache.enabled === false) return;
       if (isDisabled(item.finalUrl || item.url) || isDisabled(item.referrer || '')) return;
+      /* browser already finished the file → leave it alone (no duplicate)  */
+      if (item.state === 'complete') return;
 
       /* Only hijack when Raad is actually reachable — otherwise the browser
        * download continues untouched (graceful fallback).                   */
       const ready = await ensureReady();
       if (!ready) return;
-
-      /* Cancel the browser copy FIRST so we never double-download.
-       * If cancel fails the file already finished — leave it alone.         */
-      try { await api.downloads.cancel(item.id); } catch { return; }
-      try { await api.downloads.erase({ id: item.id }); } catch { }
 
       let cookies = '';
       if (cfg.cache.cookies) {
@@ -238,12 +239,19 @@ if (api.downloads && api.downloads.onCreated) {
           cookies = (jar || []).map(c => `${c.name}=${c.value}`).join('; ');
         } catch { }
       }
-      await sendToRaad({
+
+      const sent = await sendToRaad({
         url: item.finalUrl || item.url,
         pageUrl: item.referrer || '',
         filename: (item.filename || '').split(/[\\/]/).pop() || '',
         cookies
       });
+      if (!sent || !sent.ok) return;   /* Raad refused → browser keeps it   */
+
+      /* Raad accepted → stop the browser copy so we never double-download.
+       * If it already completed meanwhile, just drop it from the shelf.    */
+      try { await api.downloads.cancel(item.id); } catch { }
+      try { await api.downloads.erase({ id: item.id }); } catch { }
     } catch { }
   });
 }
@@ -269,6 +277,15 @@ async function handle(msg) {
       return { ...cfg.cache };
     }
     case 'raad-get-cookies': return msg.cookies;
+    case 'raad-set-config': {
+      await cfg.save(msg.patch || {});
+      if (msg.patch && (typeof msg.patch.port === 'number')) {
+        await cfg.save({ lastGoodPort: 0 });
+        connect();
+      }
+      if (msg.patch && (msg.patch.lang || msg.patch.enabled !== undefined)) buildMenus();
+      return { ...cfg.cache };
+    }
     default: return { ok: false };
   }
 }
@@ -282,30 +299,49 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;                                  /* Chrome: keep channel open */
 });
 
-/* ---------- context menus ---------- */
+/* ---------- context menus (Persian-first, rebuildable) ---------- */
+function menuTitles() {
+  const fa = (cfg.cache.lang || 'fa') !== 'en';
+  return {
+    root: 'رعد | Raad',
+    dl: fa ? '⬇ دانلود با رعد' : '⬇ Download with Raad',
+    copy: fa ? 'کپی لینک' : 'Copy link to clipboard',
+    toggle: fa ? (cfg.cache.enabled === false ? '▶ فعال‌سازی شنود دانلود' : '⏸ غیرفعال‌سازی شنود دانلود')
+               : (cfg.cache.enabled === false ? '▶ Enable Raad interception' : '⏸ Disable Raad interception')
+  };
+}
+function buildMenus() {
+  try {
+    api.contextMenus.removeAll(() => {
+      const mt = menuTitles();
+      api.contextMenus.create({ id: 'raad-root', title: mt.root, contexts: ['link'] });
+      api.contextMenus.create({ id: 'raad-dl', parentId: 'raad-root', title: mt.dl, contexts: ['link'] });
+      api.contextMenus.create({ id: 'raad-copy', parentId: 'raad-root', title: mt.copy, contexts: ['link'] });
+      api.contextMenus.create({ id: 'raad-toggle', title: mt.toggle, contexts: ['page', 'video', 'image'] });
+    });
+  } catch { }
+}
+
 api.runtime.onInstalled.addListener(async () => {
   await cfg.load();
-  api.contextMenus.removeAll(() => {
-    api.contextMenus.create({ id: 'raad-root', title: 'Raad', contexts: ['link'] });
-    api.contextMenus.create({ id: 'raad-dl', parentId: 'raad-root', title: '⬇ Download with Raad', contexts: ['link'] });
-    api.contextMenus.create({ id: 'raad-copy', parentId: 'raad-root', title: 'Copy link to clipboard', contexts: ['link'] });
-    api.contextMenus.create({ id: 'raad-toggle', title: toggleTitle(), contexts: ['page', 'video', 'image'] });
-  });
+  buildMenus();
   connect();                                   /* v1.6: pair right away      */
 });
 
-function toggleTitle() { return cfg.cache.enabled === false ? '▶ Enable Raad interception' : '⏸ Disable Raad interception'; }
+function toggleTitle() { return menuTitles().toggle; }
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'raad-dl' && info.linkUrl) {
     await sendToRaad({ url: info.linkUrl, pageUrl: info.pageUrl || '' });
   } else if (info.menuItemId === 'raad-toggle') {
     await cfg.save({ enabled: cfg.cache.enabled === false });
-    api.contextMenus.update('raad-toggle', { title: toggleTitle() });
+    buildMenus();
     try {
+      const fa = (cfg.cache.lang || 'fa') !== 'en';
       api.notifications.create({
         type: 'basic', iconUrl: 'icons/icon48.png', title: 'Raad',
-        message: cfg.cache.enabled === false ? 'Interception disabled' : 'Interception enabled'
+        message: fa ? (cfg.cache.enabled === false ? 'شنود دانلود خاموش شد' : 'شنود دانلود روشن شد')
+                    : (cfg.cache.enabled === false ? 'Interception disabled' : 'Interception enabled')
       });
     } catch { }
   } else if (info.menuItemId === 'raad-copy' && info.linkUrl) {

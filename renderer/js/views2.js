@@ -92,6 +92,7 @@ Views.renderSettings = async function (root) {
     setRow(t('dlFolder'), '', fp.wrap),
     switchRow(t('categorize'), t('categorizeDesc'), s.categorize, v => window.raad.settings.set({ categorize: v })),
     switchRow(t('askBefore'), t('askBeforeDesc'), s.askBefore, v => window.raad.settings.set({ askBefore: v })),
+    switchRow(t('extAutoStart'), t('extAutoStartDesc'), s.extAutoStart !== false, v => window.raad.settings.set({ extAutoStart: v })),
     switchRow(t('closeToTray'), '', s.closeToTray, v => window.raad.settings.set({ closeToTray: v })),
     switchRow(t('autostart'), '', s.autostart, v => window.raad.settings.set({ autostart: v })),
     switchRow(t('animations'), t('animationsDesc'), s.animations, v => window.raad.settings.set({ animations: v }))

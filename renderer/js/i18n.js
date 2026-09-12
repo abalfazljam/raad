@@ -61,7 +61,14 @@ window.I18N = {
     useYtDesc: 'برای یوتیوب، آپارات و سایت‌های ویدیویی — باید yt-dlp نصب باشد',
     ytStatus: 'وضعیت yt-dlp', ytFound: 'نصب است ✓', ytMissing: 'پیدا نشد (اختیاری)',
     clipAuto: 'مانیتور خودکار کلیپ‌بورد', clipAutoDesc: 'وقتی لینکی کپی شود، پیشنهاد دانلود می‌دهد',
-    askBefore: 'پرسیدن قبل از هر دانلود', askBeforeDesc: 'پنجره شناور مثل IDM باز می‌شود',
+    askBefore: 'پرسیدن قبل از هر دانلود', askBeforeDesc: 'پنجره شناور برای کلیپ‌بورد و افزودن دستی',
+    extAutoStart: 'دانلود خودکار از افزونه', extAutoStartDesc: 'کلیک دانلود در مرورگر = شروع فوری + پنجره پیشرفت (مثل IDM)',
+    /* progress window (v1.7) */
+    progTitle: 'پیشرفت دانلود', progEmpty: 'دانلود فعالی نیست…', progOpenApp: 'پنجره اصلی',
+    /* completion card (v1.7) */
+    compDone: 'دانلود کامل شد', compOpen: 'اجرای فایل', compFolder: 'نمایش در پوشه',
+    compCopy: 'کپی فایل', compCopied: 'کپی شد — با Ctrl+V بچسبان',
+    compDrag: 'فایل را از اینجا بکشید و در هر پوشه‌ای رها کنید',
     extPort: 'پورت سرویس محلی', extToken: 'توکن امنیتی', extCopyConfig: 'کپی کانفیگ JSON برای افزونه',
     extRegen: 'توکن جدید', extCopied: 'کپی شد!',
     extStatus: 'وضعیت پل افزونه', extStatusDesc: 'به‌صورت زنده از خود سرویس خوانده می‌شود', extTest: 'تست پل',
@@ -150,7 +157,14 @@ window.I18N = {
     useYtDesc: 'YouTube, Aparat and other video sites — requires yt-dlp installed',
     ytStatus: 'yt-dlp status', ytFound: 'Installed ✓', ytMissing: 'Not found (optional)',
     clipAuto: 'Auto clipboard monitor', clipAutoDesc: 'Offers a download whenever a link is copied',
-    askBefore: 'Ask before each download', askBeforeDesc: 'Opens the floating IDM-style window',
+    askBefore: 'Ask before each download', askBeforeDesc: 'Floating window for clipboard & manual adds',
+    extAutoStart: 'Auto-download from extension', extAutoStartDesc: 'Clicking download in the browser = instant start + progress window (like IDM)',
+    /* progress window (v1.7) */
+    progTitle: 'Download progress', progEmpty: 'No active downloads…', progOpenApp: 'Main window',
+    /* completion card (v1.7) */
+    compDone: 'Download complete', compOpen: 'Open file', compFolder: 'Show in folder',
+    compCopy: 'Copy file', compCopied: 'Copied — paste with Ctrl+V',
+    compDrag: 'Drag the file from here and drop it into any folder',
     extPort: 'Local bridge port', extToken: 'Security token', extCopyConfig: 'Copy JSON config for the extension',
     extRegen: 'Regenerate token', extCopied: 'Copied!',
     extStatus: 'Extension bridge status', extStatusDesc: 'Read live from the service itself', extTest: 'Test bridge',

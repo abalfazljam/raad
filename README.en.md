@@ -17,7 +17,7 @@
 
 **Raad** (pronounced *ra'ad*, Persian for **Thunder**) is a modern, open-source (MIT) download manager built with **Electron** — designed as a real IDM replacement: a multi-segment download engine, pause/resume, scheduling, clipboard batch import, Chrome/Firefox extensions and genuine, complete IDM history migration.
 
-> **New in v1.6:** the browser-extension bridge (the known v1.5 issue) has been rewritten and is now stable — automatic discovery & pairing, real interception of every browser download, and self-healing connectivity. Details in [v1.6 changes](#v16-changes).
+> **New in v1.7:** the full IDM experience — browser downloads start instantly in Raad, a floating progress window pops up, and a completion card offers open-file / open-folder / copy-file / drag-&-drop. Launch-on-startup (hidden next to the clock), Persian-first extension UI, and the fix for downloads lost during interception. Details in [v1.7 changes](#v17-changes).
 
 > **Two ways to install: installer or portable.** Want the classic setup with desktop shortcut and an uninstaller? Grab `Raad-Setup-x.x.x.exe` from [Releases](../../releases/latest). Prefer zero-install and fully portable? Grab `RaadDM-Portable-x.x.x.exe` — double-click, done. Data lives in a `Raad-Data` folder next to the exe.
 
@@ -31,6 +31,7 @@
 - [Transfer history & settings from IDM](#transfer-history--settings-from-idm)
 - [Browser extension (Chrome & Firefox)](#browser-extension-chrome--firefox)
 - [Known limitations](#known-limitations)
+- [v1.7 changes](#v17-changes)
 - [v1.6 changes](#v16-changes)
 - [Roadmap](#roadmap)
 - [FAQ](#faq)
@@ -109,13 +110,13 @@ Two files are available on the [Releases](../../releases/latest) page — pick w
 
 **Option 1 — Installer (recommended):**
 
-1. Download **`Raad-Setup-1.6.0.exe`** and run it.
+1. Download **`Raad-Setup-1.7.0.exe`** and run it.
 2. Choose the installation folder (default: `%LOCALAPPDATA%\Programs\Raad DM`) — the installer creates the desktop shortcut, Start-Menu entry and a proper uninstaller.
 3. Full uninstall: via `Control Panel → Programs` or the Uninstall file in the install folder.
 
 **Option 2 — Portable:**
 
-1. Download **`RaadDM-Portable-1.6.0.exe`**.
+1. Download **`RaadDM-Portable-1.7.0.exe`**.
 2. Double-click it. The first launch takes a few extra seconds (the app unpacks itself into a Windows temp folder — that's normal).
 3. Full uninstall = delete the exe and the `Raad-Data` folder next to it.
 
@@ -176,6 +177,21 @@ Transparency beats empty promises — here is the honest state of v1.6:
 3. **Windows only** for now — Linux/macOS are on the roadmap.
 4. On some corporate networks, security software may restrict browser loopback traffic; in that case use the Native Messaging mode (the `native/` folder).
 
+## 🚀 v1.7 changes
+
+Focus of 1.7: **IDM-like UX + download reliability.**
+
+| Change | Details |
+|---|---|
+| 🛡 Fixed “connected but no download” | v1.6 cancelled the browser download BEFORE handing it to Raad — a failed handoff destroyed the file. Now **send first, cancel after**: if Raad refuses, the ordinary browser download continues. Already-finished browser downloads are never hijacked (no duplicates) |
+| 🍪 Browser cookies ON by default | Like IDM, the login session travels with every download — auth-required links just work |
+| ⚡ Auto-start extension downloads | Click download in the browser = instant start in Raad + progress window (toggle in Settings) |
+| 📊 Floating progress window | Live bar, speed, ETA, pause/resume/cancel — bottom-right, closes itself when idle |
+| 🏁 “Download complete” card | Open file, show in folder, copy file (Ctrl+V in Explorer) and **drag & drop** the file anywhere |
+| 🖥 Launch on Windows startup | ON by default; the app lives next to the clock (tray) and silently catches browser downloads |
+| 🇮🇷 Persian-first extension | Popup & context menus default to Persian; the EN button switches language |
+| 🖼 Real icon everywhere | Setup/portable/app show the Raad icon in taskbar & Task Manager — not the Electron one |
+
 ## 🚀 v1.6 changes
 
 The main v1.5 problem: **"the browser extensions never coordinated with the app."** Root causes and fixes:
@@ -198,6 +214,7 @@ Other improvements: proper cookies from `chrome.cookies` (instead of `document.c
 - ✅ Categories, scheduler, clipboard monitor
 - ✅ Dark/light × 3 styles × custom accent, bilingual RTL/LTR
 - ✅ **v1.6:** stable extension bridge (auto discovery/pairing + full download interception)
+- ✅ **v1.7:** full IDM flow (auto-start + progress window + completion card with drag), tray-on-boot, Persian-first extension
 - 🔜 Next: publishing the extension to Chrome Web Store & addons.mozilla.org, code signing, lower resource usage, Linux build
 
 ## ❓ FAQ

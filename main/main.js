@@ -1,6 +1,6 @@
 'use strict';
 /* Raad DM — application entry point (Electron main process) */
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog, clipboard, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, dialog, clipboard, nativeTheme, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -36,7 +36,8 @@ if (process.env.PORTABLE_EXECUTABLE_DIR) {
 }
 
 let store, engine, scheduler, clipWatcher, bridge;
-let mainWin = null, dlgWin = null, tray = null;
+let mainWin = null, dlgWin = null, tray = null, progressWin = null;
+let completeWins = [];      /* IDM-style per-file completion windows      */
 let quitting = false;
 const iconOf = (name) => path.join(__dirname, '..', 'assets', 'icons', name);
 
@@ -59,12 +60,16 @@ const STR = {
   fa: {
     ready: 'رعد آماده است', startDl: 'شروع دانلود', done: 'دانلود کامل شد',
     doneBody: (n, f) => `${n} — در پوشه دانلودها ذخیره شد`, open: 'نمایش فایل',
-    extSent: 'به رعد ارسال شد', queueEmpty: 'همه دانلودها تمام شد'
+    extSent: 'به رعد ارسال شد', queueEmpty: 'همه دانلودها تمام شد',
+    trayOpen: 'باز کردن رعد', trayPauseAll: 'توقف همه دانلودها', trayQuit: 'خروج',
+    trayHint: 'رعد کنار ساعت میزبان شماست — دانلودهای مرورگر خودکار اینجا می‌آیند'
   },
   en: {
     ready: 'Raad is ready', startDl: 'Start download', done: 'Download completed',
     doneBody: (n) => `${n} — saved to your downloads`, open: 'Show file',
-    extSent: 'Sent to Raad', queueEmpty: 'All downloads finished'
+    extSent: 'Sent to Raad', queueEmpty: 'All downloads finished',
+    trayOpen: 'Open Raad', trayPauseAll: 'Pause all downloads', trayQuit: 'Quit',
+    trayHint: 'Raad lives next to the clock — browser downloads arrive here automatically'
   }
 };
 const T = () => STR[(store.get('settings', {}).language || 'fa')] || STR.fa;
@@ -88,8 +93,10 @@ function defaultSettings() {
     ytdlpPath: '',
     port: 27500,
     token: crypto.randomBytes(12).toString('hex'),
-    autostart: false,
+    autostart: true,         /* v1.7 default: launch with Windows, hidden in tray */
+    extAutoStart: true,      /* v1.7: extension downloads start immediately (IDM-like) */
     closeToTray: true,
+    settingsVersion: 2,      /* migration marker — see init() */
     /* per-category save folders (IDM-style), see Settings → Categories */
     categoryFolders: {},      // { video: 'D:\\Movies', … } — '' = default subfolder
     radius: 'md',            // sm | md | lg
@@ -133,7 +140,7 @@ function createMain() {
       mainWin.hide();
       if (!mainWin._trayHintShown) {
         mainWin._trayHintShown = true;
-        notify(T().ready, 'Raad ▸ ' + (s.language === 'fa' ? 'در تری میزبان شماست' : 'lives in your tray'));
+        notify(T().ready, T().trayHint);
       }
     }
   });
@@ -157,16 +164,106 @@ function createTray() {
   /* NOTE: no mass "Start all" here on purpose — with a restored IDM history
    * (thousands of rows) a stray click would flood the connection. Starting
    * happens per-row, or on schedule (Scheduler view). */
-  const menu = Menu.buildFromTemplate([
-    { label: 'Raad', click: () => showMain() },
-    { type: 'separator' },
-    { label: 'Pause All', click: () => engine.pauseAll() },
-    { type: 'separator' },
-    { label: 'Quit', click: () => { quitting = true; app.quit(); } }
-  ]);
   tray.setToolTip('Raad Download Manager');
-  tray.setContextMenu(menu);
   tray.on('click', () => showMain());
+  applyTrayMenu();
+}
+
+/* rebuilt on language change so the tray menu follows the UI language */
+function applyTrayMenu() {
+  if (!tray) return;
+  try {
+    const t = T();
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: t.trayOpen, click: () => showMain() },
+      { label: t.trayPauseAll, click: () => engine.pauseAll() },
+      { type: 'separator' },
+      { label: t.trayQuit, click: () => { quitting = true; app.quit(); } }
+    ]));
+  } catch { }
+}
+
+/* ---------- v1.7: floating IDM-style PROGRESS window ----------
+ * One shared window listing every active download with a live bar,
+ * speed, ETA and pause/resume/cancel — it pops up (bottom-right) as soon
+ * as a download starts and closes itself when nothing is active.        */
+const PROG_W = 470;
+function createProgress() {
+  if (progressWin && !progressWin.isDestroyed()) return;
+  progressWin = new BrowserWindow({
+    width: PROG_W, height: 200, minWidth: 400,
+    frame: false, transparent: true, resizable: false, maximizable: false, fullscreenable: false,
+    alwaysOnTop: true, skipTaskbar: true, show: false,
+    icon: iconOf(process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+    webPreferences: { preload: path.join(__dirname, '..', 'preload', 'bridge.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false }
+  });
+  progressWin.loadFile(path.join(__dirname, '..', 'renderer', 'progress', 'index.html'));
+  progressWin.once('ready-to-show', () => { try { progressWin.showInactive(); } catch { } });
+  progressWin.on('closed', () => { progressWin = null; });
+}
+
+function positionProgress() {
+  try {
+    if (!progressWin || progressWin.isDestroyed()) return;
+    const wa = screen.getPrimaryDisplay().workArea;
+    const [w, h] = progressWin.getSize();
+    progressWin.setPosition(wa.x + wa.width - w - 14, wa.y + wa.height - h - 14);
+  } catch { }
+}
+
+/* the renderer reports how many rows it shows → grow/shrink + stay pinned */
+function sizeProgress(rows) {
+  try {
+    if (!progressWin || progressWin.isDestroyed()) return;
+    const h = Math.max(200, Math.min(200 + Math.max(0, rows - 1) * 84, 200 + 5 * 84));
+    progressWin.setSize(PROG_W, h);
+    positionProgress();
+  } catch { }
+}
+
+/* ---------- v1.7: per-file COMPLETION window (IDM-style) ----------
+ * Small card bottom-right: open the file, show it in its folder, copy it
+ * to the clipboard (Ctrl+V in Explorer) and a DRAG zone — grab the chip
+ * and drop the finished file anywhere. One window per finished download. */
+function createComplete(rec) {
+  try {
+    if (!rec || !rec.folder) return;
+    const W = 420, H = 252;
+    const wa = screen.getPrimaryDisplay().workArea;
+    const idx = completeWins.length % 6;
+    const win = new BrowserWindow({
+      width: W, height: H, frame: false, transparent: true, resizable: false, maximizable: false, fullscreenable: false,
+      alwaysOnTop: true, skipTaskbar: true, show: false,
+      x: wa.x + wa.width - W - 14 - idx * 24,
+      y: wa.y + wa.height - H - 14 - idx * 24,
+      icon: iconOf(process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+      webPreferences: { preload: path.join(__dirname, '..', 'preload', 'bridge.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false }
+    });
+    win.loadFile(path.join(__dirname, '..', 'renderer', 'complete', 'index.html'));
+    win.once('ready-to-show', () => {
+      try {
+        win.showInactive();
+        win.webContents.send('complete:init', {
+          id: rec.id, filename: rec.filename, folder: rec.folder,
+          path: path.join(rec.folder, rec.filename),
+          size: rec.size, url: rec.url
+        });
+      } catch { }
+    });
+    win.on('closed', () => { completeWins = completeWins.filter(w => w !== win); });
+    completeWins.push(win);
+  } catch { }
+}
+
+/* Windows Explorer "copy file" — paste the finished file with Ctrl+V */
+function copyFileToClipboard(p) {
+  try {
+    if (!p || !fs.existsSync(p)) return false;
+    clipboard.clear();
+    clipboard.writeBuffer('FileName', Buffer.concat([Buffer.from(p), Buffer.alloc(1)]));
+    clipboard.writeBuffer('FileNameW', Buffer.concat([Buffer.from(p, 'ucs2'), Buffer.alloc(2)]));
+    return true;
+  } catch { return false; }
 }
 
 function showMain() {
@@ -193,6 +290,7 @@ function applySettings(s) {
   clipWatcher.configure({ enabled: s.clipAuto });
   bridge.setToken(s.token);
   try { app.setLoginItemSettings({ openAtLogin: !!s.autostart, args: ['--hidden'] }); } catch { }
+  applyTrayMenu();   /* v1.7: tray menu follows the UI language */
 }
 
 async function init() {
@@ -214,6 +312,13 @@ async function init() {
   /* v1.3 migration: the system-synced "auto" theme mode was removed
    * (it triggered GPU repaint storms on some Windows machines) */
   if (settings.mode !== 'light') settings.mode = 'dark';
+  /* v1.7 migration: autostart default flipped to ON (launch hidden in
+   * tray next to the clock) and extension downloads start automatically */
+  if (!settings.settingsVersion || settings.settingsVersion < 2) {
+    settings.settingsVersion = 2;
+    settings.autostart = true;
+    settings.extAutoStart = true;
+  }
   store.set('settings', settings);
 
   engine = new Engine(store);
@@ -235,8 +340,12 @@ async function init() {
   engine.on('status', s => {
     broadcast('evt', { type: 'dl:status', ...s });
     const rec = engine.get(s.id);
+    /* v1.7: floating progress window pops up as soon as bytes flow        */
+    if (s.status === 'downloading') createProgress();
     if (s.status === 'completed') {
       notify(T().done, T().doneBody(rec.filename), () => shell.showItemInFolder(path.join(rec.folder, rec.filename)));
+      /* v1.7: IDM-style completion card (open / folder / copy / drag)      */
+      if (rec && rec.folder && rec.source !== 'idm') createComplete(rec);
     }
   });
   engine.on('removed', r => broadcast('evt', { type: 'dl:removed', id: r.id }));
@@ -249,9 +358,19 @@ async function init() {
     if (mainWin && !mainWin.isDestroyed() && mainWin.isFocused()) broadcast('evt', { type: 'clip:urls', urls });
   });
 
-  /* bridge server (extension) → dialog / queue */
+  /* bridge server (extension) → dialog / queue
+   * v1.7 IDM flow: an extension download starts IMMEDIATELY by default
+   * (extAutoStart) — the progress window pops up and the completion card
+   * appears when the file lands. askBefore only gates other sources        */
   bridge.on('add', (item) => {
-    if (store.get('settings', {}).askBefore) {
+    const s = store.get('settings', {});
+    if (item.source === 'extension' && s.extAutoStart !== false) {
+      const { id } = engine.add(item);
+      notify(T().startDl, (item.filename || item.url).slice(0, 90));
+      broadcast('evt', { type: 'ext:added', id });
+      return;
+    }
+    if (s.askBefore) {
       createDialog(item);
     } else {
       const { id } = engine.add(item);
@@ -268,6 +387,18 @@ async function init() {
 
   if (process.env.RAAD_SMOKE) {
     require('./smoke')({
+      mainWin: () => mainWin,
+      bridge,
+      engine,
+      store,
+      port: () => bridge.port,
+      token: () => store.get('settings', {}).token
+    });
+  }
+
+  /* v1.7: in-app end-to-end test of the extension → auto-start → windows flow */
+  if (process.env.RAAD_E2E) {
+    require('./e2e')({
       mainWin: () => mainWin,
       bridge,
       engine,
@@ -461,6 +592,24 @@ function registerIpc() {
     try { return await engine.probe(url, { referrer }); }
     catch (e) { return { ok: false, error: String(e.message || e) }; }
   });
+
+  /* ---- v1.7: progress + completion windows ---- */
+  ipcMain.on('win:showMain', () => showMain());
+  ipcMain.on('prog:close', () => progressWin && progressWin.close());
+  ipcMain.on('prog:min', () => progressWin && progressWin.minimize());
+  ipcMain.on('prog:rows', (_e, rows) => sizeProgress(Number(rows) || 1));
+  ipcMain.on('complete:close', (e) => {
+    const w = BrowserWindow.fromWebContents(e.sender);
+    if (w) w.close();
+  });
+  /* drag the finished file out of the completion card (Explorer, desktop…) */
+  ipcMain.on('drag:file', (e, p) => {
+    try {
+      if (typeof p !== 'string' || !fs.existsSync(p)) return;
+      e.sender.startDrag({ file: p, icon: iconOf('icon.png') });
+    } catch { }
+  });
+  ipcMain.handle('clip:copyFile', (_e, p) => ({ ok: copyFileToClipboard(p) }));
   ipcMain.handle('dlg:start', (_e, { payload, folder, start = true }) => {
     const { id } = engine.add({
       url: payload.url, referrer: payload.referrer || '', cookies: payload.cookies || '',
