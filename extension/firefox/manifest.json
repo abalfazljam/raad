@@ -1,12 +1,12 @@
 {
   "manifest_version": 2,
   "name": "Raad Download Manager",
-  "description": "Send downloads to Raad DM — click interception, context menu and multi-link clipboard support. IDM-like experience.",
-  "version": "1.1.0",
+  "description": "Send downloads to Raad DM — automatic pairing, full download interception (IDM-style), context menu and multi-link clipboard support.",
+  "version": "1.2.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "raad-dm@raad.dev",
-      "strict_min_version": "91.0"
+      "strict_min_version": "102.0"
     }
   },
   "icons": {
@@ -19,6 +19,9 @@
     "contextMenus",
     "storage",
     "notifications",
+    "downloads",
+    "cookies",
+    "tabs",
     "<all_urls>"
   ],
   "background": {

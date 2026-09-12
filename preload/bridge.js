@@ -79,7 +79,10 @@ contextBridge.exposeInMainWorld('raad', {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
     openPath: (p) => ipcRenderer.invoke('shell:openPath', p)
   },
-  ext: { regenToken: () => ipcRenderer.invoke('ext:regenToken') },
+  ext: {
+    regenToken: () => ipcRenderer.invoke('ext:regenToken'),
+    bridgeInfo: () => ipcRenderer.invoke('ext:bridgeInfo')   /* v1.6: live bridge status */
+  },
   theme: { sync: (mode) => ipcRenderer.invoke('theme:sync', mode) },
   relaunch: () => ipcRenderer.invoke('app:relaunch')
 });

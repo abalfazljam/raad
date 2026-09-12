@@ -40,6 +40,20 @@ let mainWin = null, dlgWin = null, tray = null;
 let quitting = false;
 const iconOf = (name) => path.join(__dirname, '..', 'assets', 'icons', name);
 
+/* v1.6: discovery file — the actual bridge {port, token} is persisted so the
+ * optional native-messaging host and power users can always find the app even
+ * if the port moved. Lives inside Raad-Data (portable, easy to inspect). */
+function writeBridgeInfo() {
+  try {
+    if (!store || !bridge) return;
+    const info = {
+      name: 'raad', version: app.getVersion(), port: bridge.port || 0,
+      token: store.get('settings', {}).token || '', updatedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(path.join(app.getPath('userData'), 'bridge.json'), JSON.stringify(info, null, 2));
+  } catch { }
+}
+
 /* ---------------- strings (main-process side) ---------------- */
 const STR = {
   fa: {
@@ -207,7 +221,13 @@ async function init() {
   clipWatcher = new ClipboardWatcher();
   bridge = new BridgeServer(settings.token);
   applySettings(settings);
+  /* v1.6: the bridge now self-heals (port scan + retry) and reports status */
+  bridge.on('status', ({ ok, port }) => {
+    writeBridgeInfo();
+    broadcast('evt', { type: 'bridge:status', ok, port });
+  });
   await bridge.start(settings.port);
+  writeBridgeInfo();
 
   /* engine → UI */
   engine.on('added', rec => broadcast('evt', { type: 'dl:added', rec }));
@@ -275,6 +295,8 @@ function registerIpc() {
     platform: process.platform,
     locale: app.getLocale(),
     port: bridge.port,
+    bridgeOk: bridge.port > 0,
+    authRequired: !!settings().token,
     token: settings().token,
     downloadDir: settings().downloadDir,
     ytAvailable: !!engine._findYtdlp()
@@ -342,13 +364,15 @@ function registerIpc() {
 
   /* settings */
   ipcMain.handle('settings:get', () => settings());
-  ipcMain.handle('settings:set', (_e, patch) => {
+  ipcMain.handle('settings:set', async (_e, patch) => {
     const s = { ...settings(), ...patch };
     if (!/^https?:\/\/|^$/.test(s.ytdlpPath || '')) s.ytdlpPath = '';
     if (!Number.isFinite(s.port) || s.port < 1024 || s.port > 65535) s.port = 27500;
+    const portChanged = s.port !== (bridge.port || settings().port);
     store.set('settings', s);
     applySettings(s);
-    if (s.port !== bridge.port) bridge.start(s.port);
+    /* v1.6: stop-first restart + await, so the UI sees the real new port */
+    if (portChanged) { await bridge.start(s.port); writeBridgeInfo(); }
     broadcast('evt', { type: 'settings:changed', settings: s });
     return s;
   });
@@ -410,6 +434,12 @@ function registerIpc() {
     return s;
   });
 
+  /* bridge diagnostics (Settings → Browser extension) */
+  ipcMain.handle('ext:bridgeInfo', () => ({
+    ok: bridge.port > 0, port: bridge.port,
+    token: settings().token, version: app.getVersion()
+  }));
+
   /* misc */
   ipcMain.handle('shell:openExternal', (_e, url) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
@@ -418,10 +448,11 @@ function registerIpc() {
   ipcMain.handle('shell:openPath', (_e, p) => shell.openPath(p));
   ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0); });
 
-  /* extension token regen */
+  /* extension token regen — v1.6: the extension re-pairs automatically via /pair */
   ipcMain.handle('ext:regenToken', () => {
     const s = { ...settings(), token: crypto.randomBytes(12).toString('hex') };
     store.set('settings', s); applySettings(s);
+    writeBridgeInfo();
     return s;
   });
 

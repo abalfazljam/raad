@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Raad Download Manager",
-  "description": "Send downloads to Raad DM — click interception, context menu and multi-link clipboard support. IDM-like experience.",
-  "version": "1.1.0",
+  "description": "Send downloads to Raad DM — automatic pairing, full download interception (IDM-style), context menu and multi-link clipboard support.",
+  "version": "1.2.0",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -12,7 +12,10 @@
   "permissions": [
     "contextMenus",
     "storage",
-    "notifications"
+    "notifications",
+    "downloads",
+    "cookies",
+    "tabs"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",

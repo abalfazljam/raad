@@ -196,13 +196,31 @@ Views.renderSettings = async function (root) {
     switchRow(t('clipAuto'), t('clipAutoDesc'), s.clipAuto, v => window.raad.settings.set({ clipAuto: v }))
   ]));
 
-  /* ---- Browser extension ---- */
+  /* ---- Browser extension (v1.6: live bridge status + auto pairing) ---- */
+  const bridgeChip = h('span', { class: 'chip', text: '…' });
+  async function refreshBridgeChip() {
+    try {
+      state.info = await window.raad.appInfo();
+      const ok = state.info.bridgeOk !== false && state.info.port > 0;
+      bridgeChip.className = 'chip ' + (ok ? 'ok' : '');
+      bridgeChip.textContent = ok
+        ? (state.language === 'fa' ? `پل فعال — پورت ${state.info.port}` : `bridge up — port ${state.info.port}`)
+        : (state.language === 'fa' ? 'پل غیرفعال — تلاش مجدد خودکار…' : 'bridge down — auto-retrying…');
+      portIn.value = state.info.port || portIn.value;
+    } catch { bridgeChip.textContent = '…'; }
+  }
   const tokenIn = h('code', { class: 'mono', text: s.token.slice(0, 6) + '••••••••••••' + s.token.slice(-4), title: s.token });
   const portIn = h('input', { class: 'input', type: 'number', value: s.port, style: { width: '110px', direction: 'ltr' } });
-  portIn.onchange = () => window.raad.settings.set({ port: +portIn.value }).then(() => toast(t('ok'), 'port → ' + portIn.value));
+  portIn.onchange = async () => {
+    await window.raad.settings.set({ port: +portIn.value });
+    await refreshBridgeChip();
+    toast(t('ok'), 'port → ' + portIn.value);
+  };
+  const testBtn = h('button', { class: 'btn sm ghost', text: t('extTest'), onclick: async () => { await refreshBridgeChip(); toast(t('ok'), t('extTest')); } });
   const copyCfg = h('button', {
     class: 'btn sm', text: t('extCopyConfig'),
     onclick: async () => {
+      state.info = await window.raad.appInfo();   /* v1.6: always copy the REAL port */
       await navigator.clipboard.writeText(JSON.stringify({ port: state.info.port, token: s.token }));
       toast(t('extCopied'), 'JSON config', 'ok');
     }
@@ -212,11 +230,13 @@ Views.renderSettings = async function (root) {
     onclick: async () => { const ns = await window.raad.ext.regenToken(); tokenIn.textContent = ns.token.slice(0, 6) + '••••••••••••' + ns.token.slice(-4); tokenIn.title = ns.token; toast(t('ok'), t('extRegen')); }
   });
   wrap.append(setCard(t('setExt'), '🌐', [
+    setRow(t('extStatus'), t('extStatusDesc'), h('div', { class: 'ctl' }, bridgeChip, testBtn)),
     setRow(t('extPort'), '127.0.0.1', portIn),
     setRow(t('extToken'), '', h('div', { class: 'ctl' }, tokenIn, regenBtn)),
-    setRow('', '', copyCfg),
+    setRow('', t('extAutoNote'), copyCfg),
     accordion(t('extGuide'), t('extSteps'))
   ]));
+  refreshBridgeChip();
 
   /* ---- IDM ---- */
   wrap.append(setCard(t('setIdm'), '⬇', [

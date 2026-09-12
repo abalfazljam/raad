@@ -4,13 +4,22 @@
   <meta charset="UTF-8" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { width: 300px; font: 13px -apple-system, 'Segoe UI', Tahoma, sans-serif; background: #0b1020; color: #e6eaf2; padding: 14px; }
+    body { width: 312px; font: 13px -apple-system, 'Segoe UI', Tahoma, sans-serif; background: #0b1020; color: #e6eaf2; padding: 14px; }
+    body.fa { direction: rtl; }
     .head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
     .logo { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; font-size: 15px; }
     h1 { font-size: 14px; }
-    .status { margin-inline-start: auto; display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: #8b93a7; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #5b6478; }
+    .lang { margin-inline-start: auto; font-size: 10px; color: #8b93a7; cursor: pointer; border: 1px solid rgba(148,163,214,.25); border-radius: 7px; padding: 2px 7px; background: none; }
+    .lang:hover { color: #e6eaf2; }
+
+    .status { display: flex; align-items: center; gap: 7px; padding: 9px 11px; border-radius: 11px;
+              background: rgba(148,163,214,.08); border: 1px solid rgba(148,163,214,.14); margin-bottom: 11px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #5b6478; flex: 0 0 9px; }
     .dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
+    .dot.err { background: #fb7185; box-shadow: 0 0 8px #fb7185; }
+    .status b { font-size: 12px; }
+    .status span.sub { display: block; font-size: 10px; color: #8b93a7; margin-top: 1px; direction: ltr; text-align: start; }
+    .stxt { flex: 1; min-width: 0; }
 
     /* big one-click ON/OFF banner */
     .power {
@@ -41,14 +50,19 @@
     .knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #8b93a7; transition: .2s; }
     .switch input:checked ~ .track { background: #6366f1; }
     .switch input:checked ~ .knob { transform: translateX(16px); background: #fff; }
-    textarea { width: 100%; height: 74px; margin-top: 8px; background: #141c34; color: #c7cee0; border: 1px solid rgba(148,163,214,.2); border-radius: 9px; padding: 8px; font: 10.5px Consolas, monospace; resize: none; outline: none; direction: ltr; }
-    textarea:focus { border-color: #6366f1; }
-    .btns { display: flex; gap: 7px; margin-top: 9px; }
-    button.save, button.ghost { flex: 1; padding: 7px 0; border-radius: 8px; border: none; cursor: pointer; font: 600 11.5px inherit; }
+    .site-row button { flex: 1; background: rgba(251,191,36,.15); color: #fbbf24; border: none; border-radius: 8px; padding: 7px 0; cursor: pointer; font: 600 11.5px inherit; }
+    .site-row button:hover { filter: brightness(1.15); }
+
+    .btns { display: flex; gap: 7px; margin-top: 10px; }
+    .btns button { flex: 1; padding: 8px 0; border-radius: 8px; border: none; cursor: pointer; font: 600 11.5px inherit; }
     .save { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }
     .ghost { background: rgba(148,163,214,.12); color: #c7cee0; }
-    .site-row button { flex: 1; background: rgba(251,191,36,.15); color: #fbbf24; border: none; border-radius: 8px; padding: 7px 0; cursor: pointer; font: 600 11.5px inherit; }
-    .msg { font-size: 10.5px; color: #8b93a7; margin-top: 8px; line-height: 1.7; text-align: center; }
+    .ghost:hover, .save:hover { filter: brightness(1.15); }
+    details { margin-top: 10px; }
+    summary { cursor: pointer; font-size: 10.5px; color: #8b93a7; outline: none; }
+    textarea { width: 100%; height: 64px; margin-top: 7px; background: #141c34; color: #c7cee0; border: 1px solid rgba(148,163,214,.2); border-radius: 9px; padding: 8px; font: 10.5px Consolas, monospace; resize: none; outline: none; direction: ltr; }
+    textarea:focus { border-color: #6366f1; }
+    .msg { font-size: 10.5px; color: #8b93a7; margin-top: 9px; line-height: 1.8; text-align: center; }
     .msg .fa { direction: rtl; display: block; margin-top: 2px; }
   </style>
 </head>
@@ -56,36 +70,44 @@
   <div class="head">
     <div class="logo">⚡</div>
     <h1>Raad</h1>
-    <div class="status"><span id="stTxt">checking…</span><span class="dot" id="stDot"></span></div>
+    <button class="lang" id="btnLang">فا</button>
+  </div>
+
+  <div class="status">
+    <span class="dot" id="stDot"></span>
+    <div class="stxt"><b id="stTxt">…</b><span class="sub" id="stSub"></span></div>
+    <button class="ghost" id="btnConnect" style="flex:0 0 auto;padding:6px 10px;font:600 11px inherit;">↻</button>
   </div>
 
   <!-- one-click master switch -->
   <button class="power" id="powerBtn" title="Click to enable / disable">
     <span class="bulb" id="pBulb">⏻</span>
-    <span class="ptxt"><b id="pTitle">Interception: ON</b><span>غیرفعال/فعال کردن شنود دانلود با یک کلیک</span></span>
+    <span class="ptxt"><b id="pTitle">Interception: ON</b><span id="pSub"></span></span>
     <span class="state" id="pState">ON</span>
   </button>
 
   <div class="row">
-    <div class="lbl">Send cookies<span>For sites that need login (recommended)</span></div>
+    <div class="lbl" id="lbCookies">Send cookies<span>For sites that need login (recommended)</span></div>
     <label class="switch"><input type="checkbox" id="swCookies"><span class="track"></span><span class="knob"></span></label>
   </div>
   <div class="row">
-    <div class="lbl">Notifications<span>Toast when a download is sent</span></div>
+    <div class="lbl" id="lbNotify">Notifications<span>Toast when a download is sent</span></div>
     <label class="switch"><input type="checkbox" id="swNotify"><span class="track"></span><span class="knob"></span></label>
   </div>
   <div class="row site-row">
     <button id="btnSite">Disable on this site</button>
   </div>
 
-  <textarea id="cfg" spellcheck="false" placeholder='{"port":27500,"token":"…"}'></textarea>
-  <div class="btns">
-    <button class="ghost" id="btnPing">Test</button>
-    <button class="save" id="btnSave">Save config</button>
-  </div>
-  <div class="msg">Copy the JSON config from Raad → Settings → Browser extension
-    <span class="fa">JSON را از برنامه رعد ← تنظیمات ← افزونه مرورگر کپی کنید</span>
-  </div>
+  <details>
+    <summary id="advTitle">Advanced: manual JSON config</summary>
+    <textarea id="cfg" spellcheck="false" placeholder='{"port":27500,"token":"…"}'></textarea>
+    <div class="btns">
+      <button class="ghost" id="btnPing">Test</button>
+      <button class="save" id="btnSave">Save config</button>
+    </div>
+  </details>
+
+  <div class="msg" id="footMsg"></div>
 
   <script src="popup.js"></script>
 </body>

@@ -7,8 +7,11 @@ Setup (Windows):
   2) python raad-native-host.py --install-firefox
 The scripts write the manifest under HKCU and point the browser to this file.
 
-The host reads the token/port from native-host.json next to this file,
-or from %USERPROFILE%/.raad/native-host.json.
+Since Raad v1.6 the host reads port/token automatically from `bridge.json`,
+which the app rewrites whenever the bridge port moves:
+  * <exe dir>/Raad-Data/bridge.json        (portable build)
+  * %APPDATA%/Raad Download Manager/bridge.json  (dev / installed)
+  * native-host.json next to this file, or %USERPROFILE%/.raad/ (legacy)
 """
 import json
 import os
@@ -39,11 +42,19 @@ def send_message(obj):
 
 
 def load_conf():
-    for p in [os.path.join(HERE, 'native-host.json'),
-              os.path.join(os.path.expanduser('~'), '.raad', 'native-host.json')]:
+    candidates = [
+        os.path.join(HERE, 'native-host.json'),
+        os.path.join(os.path.expanduser('~'), '.raad', 'native-host.json'),
+    ]
+    appdata = os.environ.get('APPDATA') or os.path.join(os.path.expanduser('~'), 'AppData', 'Roaming')
+    candidates.append(os.path.join(appdata, 'Raad-Data', 'bridge.json'))            # portable
+    candidates.append(os.path.join(appdata, 'Raad Download Manager', 'bridge.json'))  # dev/installed
+    for p in candidates:
         try:
             with open(p, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                conf = json.load(f)
+                if conf.get('port'):
+                    return conf
         except Exception:
             continue
     return {'port': 27500, 'token': ''}

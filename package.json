@@ -1,16 +1,19 @@
 {
   "name": "raad-dm",
   "productName": "Raad Download Manager",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Raad (Thunder) — a modern IDM-alternative download manager: multi-segment engine, pause/resume, scheduler, clipboard batch import, IDM migration and Chrome/Firefox extensions",
   "main": "main/main.js",
   "author": "Raad Team",
   "license": "MIT",
   "scripts": {
+    "postinstall": "node scripts/patch-nonis.js",
     "start": "electron .",
     "dev": "electron . --dev",
     "dist": "electron-builder",
-    "dist:win": "electron-builder --win portable --x64"
+    "dist:win": "electron-builder --win nsis portable --x64",
+    "dist:win:installer": "electron-builder --win nsis --x64",
+    "dist:win:portable": "electron-builder --win portable --x64"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -38,6 +41,12 @@
       "signAndEditExecutable": false,
       "target": [
         {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "portable",
           "arch": [
             "x64"
@@ -52,7 +61,8 @@
       "unicode": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Raad DM"
+      "shortcutName": "Raad DM",
+      "artifactName": "Raad-Setup-${version}.${ext}"
     },
     "portable": {
       "artifactName": "RaadDM-Portable-${version}.exe"

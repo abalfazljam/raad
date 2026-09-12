@@ -15,9 +15,11 @@
 
 <div dir="ltr">
 
-**Raad** (pronounced *ra'ad*, Persian for **Thunder**) is a modern, open-source (MIT), fully **portable** download manager built with **Electron** — designed as a real IDM replacement: a multi-segment download engine, pause/resume, scheduling, clipboard batch import, Chrome/Firefox extensions and genuine, complete IDM history migration.
+**Raad** (pronounced *ra'ad*, Persian for **Thunder**) is a modern, open-source (MIT) download manager built with **Electron** — designed as a real IDM replacement: a multi-segment download engine, pause/resume, scheduling, clipboard batch import, Chrome/Firefox extensions and genuine, complete IDM history migration.
 
-> **Portable, no installer.** Grab `RaadDM-Portable-x.x.x.exe` from [Releases](../../releases/latest), double-click, done. All data lives in a `Raad-Data` folder next to the exe — nothing is written to the registry.
+> **New in v1.6:** the browser-extension bridge (the known v1.5 issue) has been rewritten and is now stable — automatic discovery & pairing, real interception of every browser download, and self-healing connectivity. Details in [v1.6 changes](#v16-changes).
+
+> **Two ways to install: installer or portable.** Want the classic setup with desktop shortcut and an uninstaller? Grab `Raad-Setup-x.x.x.exe` from [Releases](../../releases/latest). Prefer zero-install and fully portable? Grab `RaadDM-Portable-x.x.x.exe` — double-click, done. Data lives in a `Raad-Data` folder next to the exe.
 
 ## 📖 Table of contents
 
@@ -29,6 +31,7 @@
 - [Transfer history & settings from IDM](#transfer-history--settings-from-idm)
 - [Browser extension (Chrome & Firefox)](#browser-extension-chrome--firefox)
 - [Known limitations](#known-limitations)
+- [v1.6 changes](#v16-changes)
 - [Roadmap](#roadmap)
 - [FAQ](#faq)
 - [Build from source](#build-from-source)
@@ -43,7 +46,7 @@ IDM has been the gold standard of download managers for years — but it is paid
 | | Raad | IDM |
 |---|---|---|
 | **License** | Free, open-source (MIT) | Commercial — 30-day trial, then paid |
-| **Install** | Portable; a single exe, no installer | Installer + browser integration |
+| **Install** | Classic installer or fully portable exe — your choice | Installer + browser integration |
 | **Persian UI / RTL** | Native, first-class (Vazirmatn bundled) | Partial translation |
 | **Multi-segment downloads** | Up to 32 parallel connections | Up to 32 parallel connections |
 | **Pause / Resume** | ✅ even after closing the app | ✅ |
@@ -71,7 +74,7 @@ IDM has been the gold standard of download managers for years — but it is paid
 
 ### 🔄 Compatibility & migration
 - **Complete IDM migration** — the whole list from the Windows registry and `UrlHistory*` files (details in [IDM migration](#transfer-history--settings-from-idm))
-- **Chrome & Firefox extensions** *(experimental)* — IDM-style floating download window; see [Browser extension](#browser-extension-chrome--firefox) for the current status
+- **Chrome & Firefox extensions** — IDM-style floating download window; see [Browser extension](#browser-extension-chrome--firefox)
 
 ### 🎨 Appearance & customization
 - **Dark/light × 3 styles** (glass, flat, soft) × 6 preset accents + **custom accent color** + corner radius + text size + static background glow + compact mode
@@ -102,10 +105,21 @@ IDM has been the gold standard of download managers for years — but it is paid
 
 ## 📥 Install
 
-1. Download **`RaadDM-Portable-1.5.0.exe`** from the [Releases](../../releases/latest) page.
+Two files are available on the [Releases](../../releases/latest) page — pick whichever you prefer:
+
+**Option 1 — Installer (recommended):**
+
+1. Download **`Raad-Setup-1.6.0.exe`** and run it.
+2. Choose the installation folder (default: `%LOCALAPPDATA%\Programs\Raad DM`) — the installer creates the desktop shortcut, Start-Menu entry and a proper uninstaller.
+3. Full uninstall: via `Control Panel → Programs` or the Uninstall file in the install folder.
+
+**Option 2 — Portable:**
+
+1. Download **`RaadDM-Portable-1.6.0.exe`**.
 2. Double-click it. The first launch takes a few extra seconds (the app unpacks itself into a Windows temp folder — that's normal).
-3. If SmartScreen warns you: `More info → Run anyway` (the file is not digitally signed; see the [FAQ](#faq)).
-4. Full uninstall = delete the exe and the `Raad-Data` folder next to it. Nothing is written to the registry.
+3. Full uninstall = delete the exe and the `Raad-Data` folder next to it.
+
+**In both cases:** if SmartScreen warns you, choose `More info → Run anyway` (the file is not digitally signed; see the [FAQ](#faq)). To capture links from your browser, install the Chrome/Firefox extension from the [extension folder](extension/) or the zip files attached to the same release.
 
 Requirement: Windows 10/11 (64-bit).
 
@@ -133,7 +147,7 @@ Raad's "Automatic transfer" reads **both sources** and merges them — deleted f
 
 ## 🌐 Browser extension (Chrome & Firefox)
 
-> ⚠️ **Status in v1.5:** the extension bridge is still **experimental** and on some systems the extension cannot connect to the app. This is a known issue, it is the top priority on the [roadmap](#roadmap), and it will be announced once stabilized. All other features work fully and reliably.
+> ✅ **Status in v1.6: stable.** The bridge was rewritten from scratch, fixing the "extension cannot connect on some systems" issue inherited from v1.5 — no more manual JSON copy/paste: the extension discovers and pairs with the app automatically and stays connected even if the port or token changes.
 
 Manual install (for testing):
 
@@ -141,20 +155,41 @@ Manual install (for testing):
 |---|---|
 | `chrome://extensions` → Developer mode → **Load unpacked** → the `extension/chrome` folder | `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → the `extension/firefox/manifest.json` file |
 
-Then in Raad: **Settings ← Browser extension ← Copy JSON**, and Paste + Save it in the extension popup.
+That's it — while Raad is running, the connection is **automatic**. The popup should show "Connected to Raad"; if the app is closed, the `↻` button re-establishes it.
 
 - Click the **big ON/OFF button** at the top of the extension popup = enable/disable download interception
 - Right-click on any page ← "Disable/Enable Raad interception"
-- When connected: clicking any download link in the browser opens Raad's floating window and the download continues with Raad
+- When connected: clicking a download link **or starting any download in the browser** opens Raad's floating window and the download continues with Raad (real IDM behaviour; if Raad is not running, the browser download proceeds as usual)
+
+**How the coordination works (v1.6):**
+1. The extension scans `127.0.0.1:27500…27520` and finds the app via `/ping`.
+2. It fetches `{port, token}` automatically from `/pair` (allowed only for browser-extension origins — regular web pages are rejected).
+3. On any failed send (app closed, port moved, token regenerated) it re-pairs once by itself.
+4. The app also persists the live bridge state to `Raad-Data/bridge.json` for troubleshooting and the Native Messaging host.
 
 ## ⚠️ Known limitations
 
-Transparency beats empty promises — here is the honest state of v1.5:
+Transparency beats empty promises — here is the honest state of v1.6:
 
-1. **Chrome/Firefox extension connectivity** is still unreliable and may not connect on some systems — top priority for the next release.
-2. **No digital signature**; SmartScreen and some antivirus products may warn you (completely normal — the source is open, build it yourself).
-3. **The first launch is a bit slow** because the portable build self-extracts; subsequent launches are fast.
-4. **Windows only** for now — Linux/macOS are on the roadmap.
+1. **No digital signature**; SmartScreen and some antivirus products may warn you (completely normal — the source is open, build it yourself).
+2. **The first launch is a bit slow** because the portable build self-extracts; subsequent launches are fast.
+3. **Windows only** for now — Linux/macOS are on the roadmap.
+4. On some corporate networks, security software may restrict browser loopback traffic; in that case use the Native Messaging mode (the `native/` folder).
+
+## 🚀 v1.6 changes
+
+The main v1.5 problem: **"the browser extensions never coordinated with the app."** Root causes and fixes:
+
+| Root cause in 1.5 | Fix in 1.6 |
+|---|---|
+| If port 27500 was busy the app silently sat on the next port, but the extension only knew the single hand-copied port → dead link | Auto-discovery: the extension scans `27500…27520` and finds the app; the app remembers its last-good port |
+| The token had to be copy/pasted by hand; skipping that meant 401 on every send | Automatic pairing via `/pair` (extension origins only; web pages are rejected) |
+| `/ping` returned OK without a token, so the popup said "connected" while sends failed with 401 | `/ping` now reports the real auth state; the badge and popup tell the truth (green ✓ / warning mark) |
+| Changing the port leaked the old server, and if all ports were busy the bridge stayed dead until restart | Clean stop-first restart + automatic 5-second retry; live bridge status is visible in Settings |
+| On Firefox `AbortSignal.timeout` did not exist and `sendMessage().catch()` threw → requests hung forever | All timeouts via `AbortController`; unified `browser/chrome` promise wrapper |
+| Only link clicks with known extensions were intercepted | Real interception of every browser download via `downloads.onCreated`: the browser download is cancelled and routed to Raad; if Raad is down, the browser continues normally |
+
+Other improvements: proper cookies from `chrome.cookies` (instead of `document.cookie`), a bilingual (FA/EN) popup with a reconnect button, a `bridge.json` diagnostics file, and 26 automated bridge tests (`node scripts/test-bridge.js`).
 
 ## 🗺 Roadmap
 
@@ -162,7 +197,7 @@ Transparency beats empty promises — here is the honest state of v1.5:
 - ✅ Complete IDM history migration from the registry + UrlHistory
 - ✅ Categories, scheduler, clipboard monitor
 - ✅ Dark/light × 3 styles × custom accent, bilingual RTL/LTR
-- 🔧 **In progress:** stabilizing the Chrome/Firefox extension bridge
+- ✅ **v1.6:** stable extension bridge (auto discovery/pairing + full download interception)
 - 🔜 Next: publishing the extension to Chrome Web Store & addons.mozilla.org, code signing, lower resource usage, Linux build
 
 ## ❓ FAQ
@@ -189,7 +224,8 @@ git clone https://github.com/abalfazljam/raad.git
 cd raad
 npm install
 npm start            # run directly from source
-npm run dist:win     # build the portable RaadDM-Portable.exe (Windows)
+npm run dist:win     # build Raad-Setup.exe + RaadDM-Portable.exe (Windows)
+node scripts/test-bridge.js   # test the extension bridge (no GUI needed)
 ```
 
 Prerequisite: Node.js 18+. The Windows build also works on Linux (native makensis, no Wine).
@@ -207,7 +243,7 @@ scripts/    → icon generation, IDM parser tests, packaging
 
 - **Zero runtime dependencies** — Electron only; the download engine runs on `electron.net`
 - Atomic JSON storage (no SQLite, no native modules)
-- Extension bridge: local HTTP on `127.0.0.1` with a recoverable security token
+- Extension bridge: local HTTP on `127.0.0.1` with automatic extension-origin pairing + optional token
 
 ## 🤝 Contributing
 
